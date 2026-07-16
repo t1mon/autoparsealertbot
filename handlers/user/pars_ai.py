@@ -1,0 +1,1014 @@
+import asyncio
+import io
+import re
+from datetime import datetime
+
+import structlog
+from aiogram import F, Router
+from aiogram.exceptions import TelegramBadRequest
+from aiogram.filters import StateFilter
+from aiogram.fsm.context import FSMContext
+from aiogram.types import (
+    BufferedInputFile, Message,
+    InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, LabeledPrice, PreCheckoutQuery
+)
+from openpyxl import Workbook
+from openpyxl.styles import Font
+from peewee import IntegrityError
+from peewee import fn
+
+from account_manager.auth import CheckingAccountsValidity
+from ai.ai import get_groq_response, search_groups_in_telegram
+from core.config import ADMIN_USER_IDS
+from database.database import User, TelegramGroup
+from keyboards.user.keyboards import back_keyboard, search_group_ai, get_categories_keyboard, ai_search_keyboard
+from locales.locales import t
+from states.states import MyStates, ExportStates
+
+router = Router(name=__name__)
+logger = structlog.get_logger(__name__)
+
+
+def clean_group_name(name):
+    """
+    Очищает название группы от начальных номеров, символов и лишних пробелов.
+
+    Удаляет с начала строки последовательности из цифр, точек, тире, звёздочек,
+    скобок и пробелов, которые часто присутствуют в перечисленных списках.
+
+    Например, преобразует "1. Группа разработчиков" в "Группа разработчиков".
+
+    :param name : (str) Исходное название группы.
+    :return str: Очищенное название группы без префиксов.
+    """
+    cleaned = re.sub(r'^[\d\.\-\*\s\)\(\[\]]+', '', name).strip()
+    return cleaned
+
+
+def save_group_to_db(group_data: dict):
+    """
+    Сохраняет или обновляет информацию о группе в централизованной базе данных.
+
+    Приоритет проверки:
+    1. telegram_id (уникальное поле)
+    2. group_hash (fallback, если telegram_id = None)
+
+    При наличии записи — обновляет все поля (включая participants, description и т.д.).
+    При отсутствии — создаёт новую запись.
+
+    :param group_data: (dict) Словарь с данными группы
+    """
+    try:
+        telegram_id = group_data.get('telegram_id')
+        group_hash = group_data.get('group_hash')
+
+        # ========== 1. Проверяем по telegram_id (основной способ) ==========
+        if telegram_id is not None:
+            existing = TelegramGroup.get_or_none(TelegramGroup.telegram_id == telegram_id)
+        else:
+            # ========== 2. Fallback — проверяем по group_hash ==========
+            existing = TelegramGroup.get_or_none(TelegramGroup.group_hash == group_hash)
+
+        if existing:
+            # Обновляем существующую запись
+            existing.telegram_id = telegram_id
+            existing.group_hash = group_hash
+            existing.name = group_data.get('name')
+            existing.username = group_data.get('username')
+            existing.description = group_data.get('description')
+            existing.participants = group_data.get('participants', 0)
+            existing.category = (group_data.get('category') or '').lower() or None
+            existing.group_type = group_data.get('group_type')
+            existing.language = group_data.get('language', '')
+            existing.availability = group_data.get('availability', 'unknown')
+            existing.link = group_data.get('link')
+            # Если хочешь обновлять на "последнее обнаружение" — раскомментируй:
+
+            existing.save()
+            logger.info(f"🔄 Обновлена существующая группа: {existing.name} (telegram_id={telegram_id})")
+            return existing
+
+        else:
+            # Создаём новую запись
+            category = group_data.get('category')
+            if category:
+                category = category.lower()
+            new_group = TelegramGroup.create(
+                telegram_id=telegram_id,
+                group_hash=group_hash,
+                name=group_data.get('name'),
+                username=group_data.get('username'),
+                description=group_data.get('description'),
+                participants=group_data.get('participants', 0),
+                category=category,
+                group_type=group_data.get('group_type'),
+                language=group_data.get('language', ''),
+                availability=group_data.get('availability', 'unknown'),
+                link=group_data.get('link'),
+                # date_added автоматически поставится по default в модели
+            )
+            logger.info(f"✅ Добавлена новая группа: {new_group.name} (telegram_id={telegram_id})")
+            return new_group
+
+    except IntegrityError as e:
+        if "telegram_groups.telegram_id" in str(e):
+            logger.warning(f"Попытка создать дубль по telegram_id. Уже обработано выше.")
+            # На всякий случай пробуем обновить ещё раз
+            return save_group_to_db(group_data)  # рекурсия 1 раз — безопасно
+        else:
+            logger.exception(f"Неизвестная IntegrityError при сохранении: {e}")
+            return None
+
+    except Exception as e:
+        logger.exception(f"Ошибка при сохранении группы: {e}")
+        return None
+
+
+def format_summary_message(groups_count, lang="ru"):
+    """
+    Форматирует HTML-сообщение с краткой сводкой о результатах поиска.
+
+    Включает статус выполнения, количество найденных групп и уведомление о файле.
+
+    Сообщение отправляется перед XLSX-файлом.
+
+    :param groups_count: (int) Количество успешно сохранённых и отправленных групп.
+    :param lang: (str) Язык пользователя
+    :return: (str) Сообщение с HTML-разметкой (теги <b>).
+    """
+    return t(
+        "search_summary",
+        lang=lang,
+        groups_count=groups_count
+    )
+
+
+def create_excel_file(groups, lang='ru'):
+    """
+    Создаёт байтовый Excel-файл (.xlsx) с данными о найденных группах для отправки пользователю.
+
+    Содержит колонки: ID (Hash), Название, Username, Описание, Участников,
+    Категория, Тип, Язык, Активность, Ссылка, Дата добавления.
+    Username приводится к формату '@username'.
+
+    :param groups: (list[TelegramGroup]) Список экземпляров модели TelegramGroup.
+    :return: bytes — содержимое .xlsx файла в памяти.
+    """
+    wb = Workbook()
+    ws = wb.active
+    ws.title = t('excel_sheet_name_search_results', lang=lang)
+
+    # Заголовки
+    headers = [
+        t('excel_header_id', lang=lang),
+        t('excel_header_name', lang=lang),
+        t('excel_header_username', lang=lang),
+        t('excel_header_description', lang=lang),
+        t('excel_header_participants', lang=lang),
+        t('excel_header_category', lang=lang),
+        t('excel_header_type', lang=lang),
+        t('excel_header_language', lang=lang),
+        t('excel_header_activity', lang=lang),
+        t('excel_header_link', lang=lang),
+        t('excel_header_date_added', lang=lang)
+    ]
+    ws.append(headers)
+
+    # Жирный шрифт для заголовков
+    for col in range(1, len(headers) + 1):
+        ws.cell(row=1, column=col).font = Font(bold=True)
+
+    # Данные
+    for group in groups:
+        username = group.username or ''
+        if username:
+            username = f"@{username.lstrip('@')}"
+
+        ws.append([
+            group.group_hash,
+            group.name,
+            username,
+            group.description or '',
+            group.participants,
+            group.category or '',
+            group.group_type,
+            group.language,
+            group.availability,
+            group.link,
+            group.date_added.strftime('%Y-%m-%d %H:%M:%S')
+        ])
+
+    # Автоподбор ширины (опционально)
+    for column_cells in ws.columns:
+        length = max(len(str(cell.value)) for cell in column_cells) + 2
+        ws.column_dimensions[column_cells[0].column_letter].width = min(length, 50)
+
+    # Сохраняем в BytesIO
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    return output.getvalue()
+
+
+from datetime import timedelta
+
+def can_user_download_free(user: User) -> tuple[bool, int]:
+    """
+    Проверяет, может ли пользователь скачать базу бесплатно (1 раз в 24 часа).
+    Администраторы скачивают без лимита и без звёзд.
+    Возвращает (True, 0) или (False, оставшееся_время_в_секундах).
+    """
+    if user.user_id in ADMIN_USER_IDS:
+        return True, 0
+    if user.last_free_download_at is None:
+        return True, 0
+    elapsed = datetime.now() - user.last_free_download_at
+    if elapsed >= timedelta(hours=24):
+        return True, 0
+    remaining = int(24 * 3600 - elapsed.total_seconds())
+    return False, remaining
+
+
+def record_free_download(user: User) -> None:
+    """Фиксирует бесплатное скачивание. Для админов лимит не применяется."""
+    if user.user_id in ADMIN_USER_IDS:
+        return
+    user.last_free_download_at = datetime.now()
+    user.save()
+
+
+def get_payment_inline_keyboard(stars: int, lang: str = "ru") -> InlineKeyboardMarkup:
+    buttons = []
+    if stars >= 5:
+        buttons.append([
+            InlineKeyboardButton(
+                text=t("pay_from_balance_btn", lang=lang),
+                callback_data="pay_db_balance"
+            )
+        ])
+    buttons.append([
+        InlineKeyboardButton(
+            text=t("pay_direct_btn", lang=lang),
+            callback_data="pay_db_direct"
+        )
+    ])
+    buttons.append([
+        InlineKeyboardButton(
+            text=t("cancel_btn", lang=lang),
+            callback_data="pay_db_cancel"
+        )
+    ])
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+async def check_and_start_download(
+    message: Message,
+    state: FSMContext,
+    download_type: str,
+    category: str = None,
+    user_id: int | None = None,
+):
+    user_id = user_id or message.from_user.id
+    logger.info(f"Checking download limits for user={user_id}, download_type={download_type}, category={category}")
+    user = User.get(User.user_id == user_id)
+    user_lang = user.language if user.language != "unset" else "ru"
+    
+    can_dl, remaining_sec = can_user_download_free(user)
+    if can_dl:
+        is_admin = user.user_id in ADMIN_USER_IDS
+        logger.info(
+            f"User {user_id} is allowed to download"
+            + (" (admin, без лимита)" if is_admin else " for free.")
+        )
+        record_free_download(user)
+        if not is_admin:
+            await message.answer(t("download_free_success", lang=user_lang))
+        await perform_download(message, user_id, download_type, category)
+        await state.clear()
+    else:
+        logger.info(f"User {user_id} download limit reached. Cooldown: {remaining_sec}s")
+        hours = remaining_sec // 3600
+        minutes = (remaining_sec % 3600) // 60
+        time_str = f"{hours}ч {minutes}м" if user_lang == "ru" else f"{hours}h {minutes}m"
+        
+        await state.set_state(ExportStates.waiting_for_payment_choice)
+        await state.update_data(download_type=download_type, category=category)
+        
+        keyboard = get_payment_inline_keyboard(user.stars, user_lang)
+        msg_text = t("download_cooldown_message", lang=user_lang, time=time_str, stars=user.stars)
+        
+        await message.answer(text=msg_text, reply_markup=keyboard, parse_mode="HTML")
+
+
+async def perform_download(message: Message, user_id: int, download_type: str, category: str = None):
+    logger.info(f"📥 Начало perform_download для user_id={user_id}, download_type={download_type}, category={category}")
+    user = User.get(User.user_id == user_id)
+    user_lang = user.language if user.language != "unset" else "ru"
+    
+    # Оповещаем пользователя о начале генерации
+    status_msg = await message.answer(t("generating_database_wait", lang=user_lang))
+    logger.info(f"Отправлено статусное сообщение: '{t('generating_database_wait', lang=user_lang)}'")
+    
+    try:
+        if download_type == "all":
+            logger.info("Обработка экспорта всей базы...")
+            deleted_count = 0
+            duplicates = (
+                TelegramGroup
+                .select(
+                    TelegramGroup.telegram_id,
+                    fn.COUNT(TelegramGroup.id).alias('cnt')
+                )
+                .where(TelegramGroup.telegram_id.is_null(False))
+                .group_by(TelegramGroup.telegram_id)
+                .having(fn.COUNT(TelegramGroup.id) > 1)
+            )
+
+            for dup in duplicates:
+                tid = dup.telegram_id
+                keep_record = (
+                    TelegramGroup
+                    .select(TelegramGroup.id)
+                    .where(TelegramGroup.telegram_id == tid)
+                    .order_by(TelegramGroup.date_added.desc())
+                    .limit(1)
+                    .get()
+                )
+                deleted = (
+                    TelegramGroup
+                    .delete()
+                    .where(
+                        (TelegramGroup.telegram_id == tid) &
+                        (TelegramGroup.id != keep_record.id)
+                    )
+                    .execute()
+                )
+                deleted_count += deleted
+
+            if deleted_count > 0:
+                logger.info(f"✅ Очищено {deleted_count} дубликатов по telegram_id")
+
+            groups = TelegramGroup.select()
+            logger.info(f"Выбрано {len(groups)} записей для полной выгрузки")
+            if not groups:
+                await message.answer(t("database_empty", lang=user_lang))
+                return
+
+            excel_bytes = create_excel_file(groups, lang=user_lang)
+            logger.info("Excel файл всей базы успешно сформирован")
+            
+            await message.answer_document(
+                document=BufferedInputFile(
+                    excel_bytes,
+                    filename=t('excel_filename_all_db', lang=user_lang)
+                ),
+                caption=t(
+                    "export_all_caption",
+                    lang=user_lang,
+                    total_records=len(groups),
+                    deleted_duplicates=deleted_count
+                )
+            )
+            logger.info(f"Документ всей базы отправлен пользователю {user_id}")
+
+        elif download_type == "channels":
+            logger.info("Обработка экспорта базы каналов...")
+            groups = TelegramGroup.select().where(
+                TelegramGroup.group_type == 'Канал'
+            )
+            logger.info(f"Выбрано {len(groups)} каналов")
+            if not groups:
+                await message.answer(t("database_empty", lang=user_lang))
+                return
+            excel_bytes = create_excel_file(groups, lang=user_lang)
+            document = BufferedInputFile(excel_bytes, filename=t('excel_filename_channels_db', lang=user_lang))
+            await message.answer_document(
+                document=document,
+                caption=t("export_channels_caption", lang=user_lang, total_records=len(groups))
+            )
+            logger.info(f"Документ каналов отправлен пользователю {user_id}")
+
+        elif download_type == "groups":
+            logger.info("Обработка экспорта базы супергрупп...")
+            groups = TelegramGroup.select().where(
+                TelegramGroup.group_type == 'Группа (супергруппа)'
+            )
+            logger.info(f"Выбрано {len(groups)} групп")
+            if not groups:
+                await message.answer(t("database_empty", lang=user_lang))
+                return
+            excel_bytes = create_excel_file(groups, lang=user_lang)
+            document = BufferedInputFile(excel_bytes, filename=t('excel_filename_groups_db', lang=user_lang))
+            await message.answer_document(
+                document=document,
+                caption=t("export_groups_caption", lang=user_lang, total_records=len(groups))
+            )
+            logger.info(f"Документ групп отправлен пользователю {user_id}")
+
+        elif download_type == "category":
+            selected_category = category
+            logger.info(f"Обработка экспорта по категории '{selected_category}'...")
+            groups = TelegramGroup.select().where(TelegramGroup.category == selected_category.lower())
+            group_count = groups.count()
+            logger.info(f"Найдено {group_count} записей в категории '{selected_category}'")
+            if group_count == 0:
+                await message.answer(t("category_empty", lang=user_lang, category=selected_category))
+                return
+
+            wb = Workbook()
+            ws = wb.active
+            ws.title = t('excel_sheet_name_groups', lang=user_lang)
+
+            headers = [t('excel_header_username', lang=user_lang), t('excel_header_group_name', lang=user_lang),
+                       t('excel_header_group_description', lang=user_lang), t('excel_header_group_type', lang=user_lang),
+                       t('excel_header_group_participants', lang=user_lang), t('excel_header_group_link', lang=user_lang)]
+            ws.append(headers)
+
+            for col in range(1, len(headers) + 1):
+                ws.cell(row=1, column=col).font = Font(bold=True)
+
+            for g in groups:
+                ws.append([
+                    g.username or "",
+                    g.name or "",
+                    g.description or "",
+                    g.group_type or "",
+                    g.participants or 0,
+                    g.link or ""
+                ])
+
+            for col in ws.columns:
+                max_length = 0
+                column = col[0].column_letter
+                for cell in col:
+                    try:
+                        if len(str(cell.value)) > max_length:
+                            max_length = len(str(cell.value))
+                    except:
+                        pass
+                adjusted_width = min(max_length + 2, 50)
+                ws.column_dimensions[column].width = adjusted_width
+
+            output = io.BytesIO()
+            wb.save(output)
+            output.seek(0)
+
+            file_name = t('excel_filename_groups_by_category', lang=user_lang, category=selected_category.replace(' ', '_'))
+            await message.answer_document(
+                document=BufferedInputFile(
+                    file=output.getvalue(),
+                    filename=file_name
+                ),
+                caption=t("category_export_caption", lang=user_lang, group_count=group_count, category=selected_category),
+            )
+            logger.info(f"Документ категории '{selected_category}' отправлен пользователю {user_id}")
+
+    except Exception as e:
+        logger.exception(f"❌ Ошибка в perform_download: {e}")
+        await message.answer(t("export_error_generic", lang=user_lang))
+    finally:
+        try:
+            logger.info("Удаляем статусное сообщение...")
+            await status_msg.delete()
+        except Exception as e:
+            logger.warning(f"Не удалось удалить статусное сообщение: {e}")
+
+
+@router.callback_query(F.data == "menu:database:all")
+async def export_all_groups(callback: CallbackQuery, state: FSMContext):
+    """Выдаёт CSV-файл со всей базой данных групп и каналов."""
+    await state.clear()
+    await callback.answer()
+    await check_and_start_download(callback.message, state, download_type="all", user_id=callback.from_user.id)
+
+
+@router.callback_query(F.data == "menu:database:channels")
+async def export_channels(callback: CallbackQuery, state: FSMContext):
+    """Выдаёт CSV-файл со всей базой данных групп и каналов."""
+    await state.clear()
+    await callback.answer()
+    await check_and_start_download(callback.message, state, download_type="channels", user_id=callback.from_user.id)
+
+
+@router.callback_query(F.data == "menu:database:groups")
+async def export_supergroups(callback: CallbackQuery, state: FSMContext):
+    """Выдаёт CSV-файл со всей базой данных групп и каналов."""
+    await state.clear()
+    await callback.answer()
+    await check_and_start_download(callback.message, state, download_type="groups", user_id=callback.from_user.id)
+
+
+@router.callback_query(F.data.in_({"menu:database", "back:database"}))
+async def handle_enter_keyword_menu(callback: CallbackQuery, state: FSMContext):
+    """
+    Обрабатывает запрос пользователя на получение базы Telegram-групп и каналов.
+    """
+    await state.clear()
+    await callback.answer()
+    user = User.get(User.user_id == callback.from_user.id)
+    user_lang = user.language if user.language != "unset" else "ru"
+
+    await callback.message.edit_text(
+        text=t("get_database_menu", lang=user_lang),
+        reply_markup=search_group_ai(lang=user_lang),
+        parse_mode="HTML"
+    )
+
+
+@router.callback_query(F.data == "menu:database:category")
+async def start_category_export(callback: CallbackQuery, state: FSMContext):
+    """
+    Запускает процесс выбора категории для экспорта.
+    """
+    await state.clear()
+    await callback.answer()
+    user = User.get(User.user_id == callback.from_user.id)
+    user_lang = user.language if user.language != "unset" else "ru"
+    await callback.message.edit_text(
+        t("select_category_prompt", lang=user_lang),
+        reply_markup=get_categories_keyboard(lang=user_lang)
+    )
+
+
+@router.callback_query(F.data.startswith("menu:catpage:"))
+async def handle_category_page(callback: CallbackQuery):
+    await callback.answer()
+    user = User.get(User.user_id == callback.from_user.id)
+    user_lang = user.language if user.language != "unset" else "ru"
+    try:
+        page = int(callback.data.removeprefix("menu:catpage:"))
+    except ValueError:
+        page = 0
+    await callback.message.edit_reply_markup(
+        reply_markup=get_categories_keyboard(lang=user_lang, page=page)
+    )
+
+
+@router.callback_query(F.data.startswith("menu:catpage:"))
+async def paginate_categories(callback: CallbackQuery):
+    user = User.get(User.user_id == callback.from_user.id)
+    user_lang = user.language if user.language != "unset" else "ru"
+    try:
+        page = max(0, int(callback.data.rsplit(":", 1)[-1]))
+    except ValueError:
+        page = 0
+    await callback.answer()
+    await callback.message.edit_reply_markup(
+        reply_markup=get_categories_keyboard(lang=user_lang, page=page)
+    )
+
+
+@router.callback_query(F.data.startswith("menu:cat:"))
+async def handle_category_selection(callback: CallbackQuery, state: FSMContext):
+    """
+    Обрабатывает выбор категории и запускает проверку лимита/скачивание.
+    """
+    user = User.get(User.user_id == callback.from_user.id)
+    user_lang = user.language if user.language != "unset" else "ru"
+    category_key = callback.data.removeprefix("menu:cat:")
+    selected_category = t(category_key, lang=user_lang).lower()
+    await callback.answer()
+    await check_and_start_download(
+        callback.message,
+        state,
+        download_type="category",
+        category=selected_category,
+        user_id=callback.from_user.id,
+    )
+
+
+# ====================== ОБРАБОТЧИКИ ОПЛАТЫ И ЗВЕЗД ======================
+
+@router.callback_query(F.data == "pay_db_balance", ExportStates.waiting_for_payment_choice)
+async def handle_pay_db_balance(callback: CallbackQuery, state: FSMContext):
+    logger.info(f"🪙 Пользователь {callback.from_user.id} выбрал списание 5 звезд с баланса")
+    user = User.get(User.user_id == callback.from_user.id)
+    user_lang = user.language if user.language != "unset" else "ru"
+    
+    if user.stars < 5:
+        logger.warning(f"Недостаточно звезд у {callback.from_user.id} (баланс: {user.stars})")
+        await callback.answer(t("download_insufficient_stars", lang=user_lang), show_alert=True)
+        return
+        
+    user.stars -= 5
+    user.save()
+    logger.info(f"Списано 5 звезд у {callback.from_user.id}. Новый баланс: {user.stars}")
+    
+    await callback.message.edit_text(t("download_paid_success", lang=user_lang))
+    
+    data = await state.get_data()
+    download_type = data.get("download_type", "all")
+    category = data.get("category")
+    
+    await perform_download(callback.message, callback.from_user.id, download_type, category)
+    await state.clear()
+    await callback.answer()
+
+
+@router.callback_query(F.data == "pay_db_direct", ExportStates.waiting_for_payment_choice)
+async def handle_pay_db_direct(callback: CallbackQuery, state: FSMContext):
+    logger.info(f"⭐ Пользователь {callback.from_user.id} выбрал прямую оплату 5 звезд")
+    user = User.get(User.user_id == callback.from_user.id)
+    user_lang = user.language if user.language != "unset" else "ru"
+    
+    await callback.message.answer_invoice(
+        title=t("stars_invoice_dl_title", lang=user_lang),
+        description=t("stars_invoice_dl_desc", lang=user_lang),
+        payload="pay_download_database",
+        provider_token="",
+        currency="XTR",
+        prices=[LabeledPrice(label="Stars", amount=5)]
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data == "pay_db_cancel", ExportStates.waiting_for_payment_choice)
+async def handle_pay_db_cancel(callback: CallbackQuery, state: FSMContext):
+    logger.info(f"❌ Пользователь {callback.from_user.id} отменил оплату")
+    user = User.get(User.user_id == callback.from_user.id)
+    user_lang = user.language if user.language != "unset" else "ru"
+    
+    await callback.message.edit_text(t("action_cancelled", lang=user_lang))
+    await state.clear()
+    await callback.answer()
+
+
+@router.pre_checkout_query()
+async def process_pre_checkout_query(pre_checkout_query: PreCheckoutQuery):
+    logger.info(f"💰 PreCheckoutQuery от {pre_checkout_query.from_user.id}, ID={pre_checkout_query.id}")
+    await pre_checkout_query.answer(ok=True)
+    logger.info(f"✅ PreCheckoutQuery одобрен")
+
+
+@router.message(F.successful_payment, StateFilter("*"))
+async def process_successful_payment(message: Message, state: FSMContext):
+    logger.info(f"⭐ Получен successful_payment от {message.from_user.id}")
+    user = User.get(User.user_id == message.from_user.id)
+    user_lang = user.language if user.language != "unset" else "ru"
+    
+    payment_info = message.successful_payment
+    payload = payment_info.invoice_payload
+    logger.info(f"Платеж: payload={payload}, Stars={payment_info.total_amount}")
+    
+    if payload == "pay_download_database":
+        await message.answer(t("download_paid_success", lang=user_lang))
+        data = await state.get_data()
+        download_type = data.get("download_type", "all")
+        category = data.get("category")
+        
+        await perform_download(message, message.from_user.id, download_type, category)
+        await state.clear()
+        
+    elif payload.startswith("topup_stars_"):
+        try:
+            amount = int(payload.split("_")[2])
+        except (IndexError, ValueError):
+            amount = payment_info.total_amount
+            
+        user.stars += amount
+        user.save()
+        logger.info(f"Зачислено {amount} звезд для {message.from_user.id}. Новый баланс: {user.stars}")
+        
+        await message.answer(
+            t("stars_topup_success", lang=user_lang, amount=amount, balance=user.stars)
+        )
+        await state.clear()
+
+
+"""Меню AI поиска"""
+
+
+@router.callback_query(F.data.in_({"menu:ai", "back:ai"}))
+async def ai_search_menu(callback: CallbackQuery, state: FSMContext):
+    """
+    Обработчик команды "Поиск через AI".
+
+    Очищает состояние FSM, получает данные пользователя, логирует действие
+    и запрашивает у пользователя ключевое слово для поиска групп через AI.
+    Переводит пользователя в состояние ожидания ввода (MyStates.entering_keyword_ai_search).
+    """
+    await state.clear()  # Сбрасывает состояние
+    await callback.answer()
+    logger.info(f"Пользователь {callback.from_user.id} {callback.from_user.username} перешел в меню поиска групп")
+    user = User.get(User.user_id == callback.from_user.id)
+    user_lang = user.language if user.language != "unset" else "ru"
+    await callback.message.edit_text(
+        t("ai_search_welcome", lang=user_lang),
+        reply_markup=ai_search_keyboard(lang=user_lang),
+        parse_mode='HTML'
+    )
+
+
+"""Одиночный AI поиск"""
+
+
+@router.callback_query(F.data == "menu:ai:user")
+async def ai_search(callback: CallbackQuery, state: FSMContext):
+    """
+    Обработчик команды "Получить базу".
+
+    Очищает состояние FSM, получает данные пользователя, логирует действие
+    и запрашивает у пользователя ключевое слово для поиска групп через AI.
+    Переводит пользователя в состояние ожидания ввода (MyStates.entering_keyword_ai_search).
+
+    :param message: (Message) Входящее сообщение от пользователя.
+    :param state: (FSMContext) Контекст машины состояний, сбрасывается при входе.
+    :return: None
+    """
+    await state.clear()  # Сбрасывает состояние
+    await callback.answer()
+    telegram_user = callback.from_user
+    user = User.get(User.user_id == telegram_user.id)
+    user_lang = user.language if user.language != "unset" else "ru"
+
+    logger.info(
+        f"Пользователь {telegram_user.id} {telegram_user.username} перешел в меню поиска групп")
+
+    await callback.message.edit_text(
+        t("enter_keyword", lang=user_lang),
+        reply_markup=back_keyboard(lang=user_lang, callback_data="back:ai")
+    )
+    await state.set_state(MyStates.entering_keyword_ai_search)
+
+
+@router.message(MyStates.entering_keyword_ai_search, F.text)
+async def handle_enter_keyword(message: Message, state: FSMContext):
+    """
+    Обработчик ввода ключевого слова для AI-поиска групп и каналов.
+
+    Получает запрос от пользователя, генерирует варианты названий через Groq API,
+    ищет соответствующие группы в Telegram, сохраняет их в базу данных и отправляет
+    результаты пользователю в виде XLSX-файла.
+
+    В процессе показывает статус "Ищу...", удаляет его после завершения и отправляет
+    сводку и файл.
+
+    Обрабатывает ошибки и пустые результаты.
+
+    - Использует `get_groq_response` для генерации названий.
+    - Использует `search_groups_in_telegram` для поиска в Telegram.
+    - Результаты сохраняются через `save_group_to_db`.
+    - Файл создаётся через `create_excel_file` и отправляется как документ.
+
+    :param message: (Message) Входящее сообщение с ключевым словом.
+    :param state: (FSMContext) Контекст машины состояний, сбрасывается после обработки.
+    :return: None
+
+    Raises:
+        Exception: Перехватывается локально, логируется и преобразуется в пользовательское сообщение.
+    """
+    # telegram_user = message.from_user
+    user_input = message.text.strip()
+    user = User.get(User.user_id == message.from_user.id)
+    user_lang = user.language if user.language != "unset" else "ru"
+    # Отправляем сообщение о начале поиска
+    processing_msg = await message.answer(t("searching_groups", lang=user_lang))
+
+    try:
+        answer = await get_groq_response(user_input)  # Получаем ответ от AI
+        logger.info(f"Ответ от Groq: {answer}")
+
+        # Разбиваем ответ на строки и очищаем
+        group_names = [clean_group_name(line) for line in answer.splitlines() if line.strip()]
+        group_names = [name for name in group_names if len(name) > 2]
+        logger.info(f"Получено {len(group_names)} названий: {group_names}")
+
+        saved_groups = []
+
+        checker = CheckingAccountsValidity(message=message)
+        try:
+            client = await checker.start_user_client(message.from_user.id)
+        except Exception as e:
+            logger.error(f"❌ Ошибка запуска клиента: {e}")
+            await state.clear()
+            return
+
+        if not client:
+            await state.clear()
+            return
+
+        for group_name in group_names:
+            results = await search_groups_in_telegram(  # Ищем в Telegram
+                client=client,
+                group_names=[group_name]
+            )
+            logger.info(f"Найдено {len(results)} групп для '{group_name}'")
+
+            # Сохраняем результаты в БД
+            for group_data in results:
+                saved_group = save_group_to_db(group_data)
+                if saved_group:
+                    saved_groups.append(saved_group)
+
+        try:
+            await processing_msg.delete()  # Удаляем сообщение о поиске
+        except TelegramBadRequest as e:
+            logger.error(e)  # Если сообщение удалено, логируем ошибку
+        except Exception as e:
+            logger.exception("processing_message_delete_error", error=e)
+
+        # Отправляем результаты пользователю
+        if saved_groups:
+
+            # Создаём Excel-файл
+            excel_bytes = create_excel_file(saved_groups, lang=user_lang)
+            filename = t('excel_filename_telegram_groups', lang=user_lang,
+                         timestamp=datetime.now().strftime('%Y%m%d_%H%M%S'))
+            excel_file = BufferedInputFile(excel_bytes, filename=filename)
+
+            summary = format_summary_message(len(saved_groups), lang=user_lang)
+            await message.answer(summary, parse_mode="HTML")
+            # Отправляем CSV файл
+            await message.answer_document(
+                document=excel_file,
+                caption=t("search_results_caption", lang=user_lang, query=user_input),
+                parse_mode="HTML"
+            )
+            logger.info(f"Отправлено {len(saved_groups)} групп пользователю {message.from_user.id} в Excel файле")
+        else:
+            await message.answer(
+                t("search_no_results", lang=user_lang),
+                reply_markup=back_keyboard(lang=user_lang, callback_data="back:ai")
+            )
+    except Exception as e:
+        logger.error(f"Ошибка при обработке запроса: {e}")
+        await processing_msg.delete()
+        await message.answer(
+            t("search_error", lang=user_lang),
+            reply_markup=back_keyboard(lang=user_lang, callback_data="back:ai")
+        )
+    finally:
+        if client:
+            await client.disconnect()
+        await state.clear()  # Завершаем текущее состояние машины состояния
+
+
+"""Глобальный AI поиск"""
+
+
+@router.callback_query(F.data == "menu:ai:global")
+async def ai_search_global(callback: CallbackQuery, state: FSMContext):
+    """
+    Обработчик команды "Глобальный AI поиск".
+    Запрашивает у пользователя ключевое слово (или список) для поиска.
+    """
+    await state.clear()
+    await callback.answer()
+    telegram_user = callback.from_user
+    user = User.get(User.user_id == telegram_user.id)
+    user_lang = user.language if user.language != "unset" else "ru"
+
+    logger.info(
+        f"Пользователь {telegram_user.id} {telegram_user.username} перешел в меню глобального поиска групп"
+    )
+
+    await callback.message.edit_text(
+        t("enter_keyword", lang=user_lang),
+        reply_markup=back_keyboard(lang=user_lang, callback_data="back:ai")
+    )
+    await state.set_state(MyStates.entering_keyword_ai_search_global)
+
+
+@router.message(MyStates.entering_keyword_ai_search_global, F.text)
+async def handle_enter_keyword(message: Message, state: FSMContext):
+    """
+    Обработчик ввода ключевого слова (или списка) для AI-поиска.
+    Каждый запрос обрабатывается через ОТДЕЛЬНЫЙ случайный аккаунт.
+    """
+    telegram_user = message.from_user
+    user = User.get(User.user_id == telegram_user.id)
+    user_lang = user.language if user.language != "unset" else "ru"
+    user_input = message.text.strip()
+
+    # Парсим ввод в список запросов
+    search_terms = parse_search_input(user_input)
+
+    if not search_terms:
+        await message.answer(
+            t("global_search_no_terms", lang=user_lang),
+            reply_markup=back_keyboard(lang=user_lang, callback_data="back:ai")
+        )
+        await state.clear()
+        return
+
+    processing_msg = await message.answer(t("global_search_processing", lang=user_lang, total=len(search_terms)))
+
+    all_saved_groups = []
+    successful_queries = 0
+
+    checker = CheckingAccountsValidity(message=message)
+    client = await checker.start_user_client(message.from_user.id)
+    if not client:
+        await state.clear()
+        return
+
+    try:
+        for idx, term in enumerate(search_terms, 1):
+            logger.info(f"[{idx}/{len(search_terms)}] Запрос: '{term}'")
+
+            try:
+                answer = await get_groq_response(term)
+                logger.info(f"Ответ от Groq для '{term}': {answer}")
+
+                # Чистим и фильтруем названия
+                group_names = [
+                    clean_group_name(line)
+                    for line in answer.splitlines()
+                    if line.strip() and len(clean_group_name(line)) > 2
+                ]
+
+                if not group_names:
+                    logger.info(f"⚪ Нет названий для '{term}' после очистки")
+                    continue
+
+                logger.info(f"🔍 Ищу {len(group_names)} вариантов для '{term}'")
+
+                # Ищем группы в Telegram
+                results = await search_groups_in_telegram(
+                    client=client,
+                    group_names=group_names
+                )
+                logger.info(f"✅ Найдено {len(results)} групп для '{term}'")
+
+                # Сохраняем в БД
+                for group_data in results:
+                    saved_group = save_group_to_db(group_data)
+                    if saved_group:
+                        all_saved_groups.append(saved_group)
+
+                successful_queries += 1
+
+                # 📊 Обновляем статус в Telegram (опционально)
+                if idx % 3 == 0 or idx == len(search_terms):  # каждые 3 запроса или в конце
+                    await processing_msg.edit_text(
+                        t("global_search_progress", lang=user_lang, current=idx, total=len(search_terms),
+                          successful=successful_queries)
+                    )
+
+            except Exception as e:
+                logger.warning(f"⚠️ Ошибка при обработке '{term}': {e}")
+                continue
+
+            if idx < len(search_terms):
+                await asyncio.sleep(2)
+
+        await processing_msg.delete()
+
+        # 📤 Отправляем результаты
+        if all_saved_groups:
+            excel_bytes = create_excel_file(all_saved_groups, lang=user_lang)
+            filename = t('excel_filename_telegram_groups', lang=user_lang,
+                         timestamp=datetime.now().strftime('%Y%m%d_%H%M%S'))
+            excel_file = BufferedInputFile(excel_bytes, filename=filename)
+
+            summary = format_summary_message(len(all_saved_groups), lang=user_lang)
+            await message.answer(summary, parse_mode="HTML")
+
+            await message.answer_document(
+                document=excel_file,
+                caption=t("global_search_results_caption", lang=user_lang, total=len(all_saved_groups),
+                          successful=successful_queries, total_queries=len(search_terms)),
+                parse_mode="HTML"
+            )
+            logger.info(f"✅ Отправлено {len(all_saved_groups)} групп пользователю {telegram_user.id}")
+        else:
+            await message.answer(
+                t("global_search_no_results", lang=user_lang),
+                reply_markup=back_keyboard(lang=user_lang, callback_data="back:ai")
+            )
+
+    except Exception as e:
+        logger.error(f"❌ Критическая ошибка: {e}")
+        await processing_msg.delete()
+        await message.answer(
+            t("search_error", lang=user_lang),
+            reply_markup=back_keyboard(lang=user_lang, callback_data="back:ai")
+        )
+    finally:
+        if client and client.is_connected():
+            await client.disconnect()
+        await state.clear()
+
+
+def parse_search_input(user_input: str) -> list[str]:
+    """
+    Преобразует пользовательский ввод в список поисковых запросов.
+    Поддерживает разделители: \n, \r\n, ',', ';'
+    Убирает пустые строки и дубликаты, сохраняя порядок.
+    """
+    if not user_input or not user_input.strip():
+        return []
+
+    # Нормализуем разделители → перенос строки
+    normalized = user_input.replace(',', '\n').replace(';', '\n')
+
+    # Чистим, фильтруем пустые, убираем дубликаты с сохранением порядка
+    seen = set()
+    result = []
+    for line in normalized.splitlines():
+        cleaned = line.strip()
+        if cleaned and cleaned not in seen:
+            result.append(cleaned)
+            seen.add(cleaned)
+
+    return result

@@ -1,0 +1,38 @@
+/.env
+/.idea/
+/accounts/
+/examples/
+/data/config.ini
+/.gigaide/
+/data/bot.db
+/logs/
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+
+# База данных
+*.db
+*.db-shm
+*.db-wal
+
+# Сессии и логи
+sessions.txt
+*.log
+.logs/
+
+# ОС
+.DS_Store
+Thumbs.db
+/.venv/
+
+.qwen
+.gigacode
+.idea
+.vscode
+.antigravitycli

@@ -1,0 +1,626 @@
+import os
+from datetime import datetime
+
+from asgiref.sync import sync_to_async
+import structlog
+
+logger = structlog.get_logger(__name__)
+
+from core.telegram_utils import normalize_telegram_chat_ref, normalize_telegram_username
+from peewee import (
+    SqliteDatabase, IntegerField, AutoField, TextField, DateTimeField, Model, CharField, DoesNotExist, fn
+)
+
+DB_PATH = "data/bot.db"
+
+db = SqliteDatabase(
+    DB_PATH, timeout=30,
+    pragmas={'journal_mode': 'wal', 'cache_size': 4096, 'synchronous': 'NORMAL'},
+    autocommit=True  # ✅ Важно!
+)
+
+
+class BaseModel(Model):
+    class Meta:
+        database = db
+
+
+def init_database():
+    """Инициализация БД и создание таблиц"""
+    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+    db.connect(reuse_if_open=True)
+    db.create_tables([Account], safe=True)  # Создание таблицы аккаунтов
+    db.create_tables([AccountFree], safe=True)  # Создание таблицы аккаунтов для подключения (свободных)
+    db.create_tables([UserAccountsTable], safe=True)  # Создание таблицы аккаунтов пользователя
+    db.create_tables([Groups], safe=True)  # Создание таблицы с группами пользователей
+    db.create_tables([TelegramGroup], safe=True)  # Создание таблицы Telegram-групп
+    db.create_tables([Question], safe=True)  # Создание таблицы вопросов пользователей для расширения базы знаний
+    db.create_tables([User], safe=True)  # Создание таблицы пользователей
+
+    # Проверка наличия колонок stars и last_free_download_at в таблице user (SQLite-миграция)
+    cursor = db.cursor()
+    cursor.execute("PRAGMA table_info(user)")
+    columns = [row[1] for row in cursor.fetchall()]
+    if "stars" not in columns:
+        logger.info("Migrating database: adding 'stars' column to user table")
+        db.execute_sql('ALTER TABLE "user" ADD COLUMN "stars" INTEGER DEFAULT 0;')
+    if "last_free_download_at" not in columns:
+        logger.info("Migrating database: adding 'last_free_download_at' column to user table")
+        db.execute_sql('ALTER TABLE "user" ADD COLUMN "last_free_download_at" DATETIME;')
+
+    db.close()
+
+
+"""
+Запись в базу данных вопросов пользователей, что бы расширить базу знаний
+"""
+
+
+class Question(BaseModel):
+    id = AutoField()  # автоинкремент
+    user_id = IntegerField()  # ID пользователя Telegram
+    question = TextField()  # Вопрос пользователя
+    answer = TextField(null=True)  # Ответ на вопрос
+
+
+def add_question(user_id: int, question: str, answer: str):
+    """
+    Добавляет вопрос в базу данных.
+
+    :param user_id: Telegram ID пользователя
+    :param question: Вопрос пользователя
+    :param answer: Ответ на вопрос
+    :return: True, если вопрос добавлен, иначе False
+    """
+    Question.create(user_id=user_id, question=question, answer=answer)
+    return True
+
+
+def get_all_questions():
+    """
+    Получает все вопросы и ответы из базы данных.
+
+    :return: Список словарей с вопросами и ответами
+    """
+    try:
+        questions = Question.select()
+        result = [
+            {
+                'user_id': q.user_id,
+                'question': q.question,
+                'answer': q.answer
+            }
+            for q in questions
+        ]
+        return result
+    except Exception as e:
+        logger.exception(f"❌ Ошибка получения всех вопросов: {e}")
+        return []
+
+
+"""
+Работа с группами пользователя для отслеживания ключевых слов. Все данные пользователей хранится в одной таблице, 
+для удобства масштабирования
+"""
+
+
+class Groups(BaseModel):
+    id = AutoField()  # автоинкремент
+    user_id = IntegerField()  # ID пользователя Telegram
+    username = CharField(null=True)  # Username пользователя Telegram
+    date_added = DateTimeField(default=datetime.now)  # Дата добавления группы
+
+    class Meta:
+        table_name = f"users_groups"  # Имя таблицы
+        indexes = (
+            (("user_id", "username"), True),  # один пользователь не добавит один канал дважды
+        )
+
+
+def dell_group(user_id: int, username: str):
+    """
+    Удаляет группу из отслеживания ключевых слов.
+
+    :param user_id: Telegram ID пользователя
+    :param username: Username группы
+    :return: True, если группа удалена, иначе False
+    """
+    try:
+        deleted = (
+            Groups.delete().where(Groups.user_id == user_id, Groups.username == username).execute()
+        )
+        return deleted > 0
+    except Exception as e:
+        logger.exception("database_init_error", error=e)
+        return False
+
+
+def delete_all_user_groups(user_id: int) -> int:
+    """Удаляет все группы/каналы пользователя из списка отслеживания."""
+    try:
+        return Groups.delete().where(Groups.user_id == user_id).execute()
+    except Exception as e:
+        logger.exception("database_cleanup_error", error=e)
+        return 0
+
+
+def get_tracked_channels_count(user_id: int) -> int:
+    """
+    Получает количество отслеживаемых каналов для указанного пользователя.
+
+    :param user_id: Telegram ID пользователя
+    :return: Количество отслеживаемых каналов
+    """
+    try:
+        count = (
+            Groups.select().where(Groups.user_id == user_id).count()
+        )
+        return count
+    except Exception as e:
+        logger.error(f"Ошибка при получении количества отслеживаемых каналов для пользователя {user_id}: {e}")
+        return 0
+
+
+def get_user_channel_usernames(user_id: int) -> tuple[list[str], int]:
+    """
+    Получает все username каналов/групп пользователя по user_id.
+
+    :param user_id: Telegram ID пользователя
+    :return: Кортеж (список username, общее количество)
+    """
+    try:
+        records = list(
+            Groups.select(Groups.id, Groups.username)
+            .where(Groups.user_id == user_id)
+            .order_by(Groups.date_added.desc())
+        )
+
+        usernames = []
+        for row in records:
+            normalized = normalize_telegram_chat_ref(row.username) or normalize_telegram_username(row.username)
+            if not normalized:
+                logger.warning(f"Удаляем невалидный канал {row.username} для user_id={user_id}")
+                Groups.delete().where(Groups.id == row.id).execute()
+                continue
+
+            if normalized != row.username:
+                duplicate = Groups.get_or_none(Groups.user_id == user_id, Groups.username == normalized)
+                if duplicate:
+                    Groups.delete().where(Groups.id == row.id).execute()
+                else:
+                    Groups.update(username=normalized).where(Groups.id == row.id).execute()
+
+            usernames.append(normalized)
+
+        return usernames, len(usernames)
+
+    except Exception as e:
+        logger.error(f"Ошибка при получении каналов пользователя {user_id}: {e}")
+        return [], 0
+
+
+"""
+Таблица с аккаунтами пользователя пользователей телеграмм бота
+"""
+
+
+class UserAccountsTable(BaseModel):
+    id = AutoField()  # ✅ Первичный ключ (обязательно!)
+    user_id = IntegerField(index=True)  # ID пользователя Telegram
+    session_string = CharField(unique=True, max_length=500, index=True)
+    phone_number = CharField(max_length=20, index=True)
+    created_at = DateTimeField(default=datetime.now)  # ✅ Полезно для отладки
+
+    class Meta:
+        database = db
+        table_name = f"user_accounts_table"  # Динамическое имя таблицы
+
+
+def write_account_to_user_table(user_id: int, session_string: str, phone_number: str):
+    """
+    Записывает аккаунт в персональную таблицу пользователя: {user_id}_accounts
+    """
+    try:
+        user_accounts = UserAccountsTable.create(
+            user_id=user_id,  # ID пользователя Telegram
+            session_string=session_string,  # Строка сессии Telegram аккаунта
+            phone_number=phone_number  # Номер телефона аккаунта
+        )
+        user_accounts.save()
+    except Exception as e:
+        logger.exception("database_query_error", error=e)
+
+
+def get_user_accounts(user_id: int):
+    """
+    Получает все аккаунты пользователя из его персональной таблицы
+
+    :param user_id: ID пользователя Telegram
+    :return: Список словарей с данными аккаунтов
+    """
+    try:
+        accounts = (UserAccountsTable
+                    .select()
+                    .where(UserAccountsTable.user_id == user_id))
+
+        # Преобразуем объекты модели в словари
+        result = [
+            {
+                'user_id': account.user_id,
+                'session_string': account.session_string,
+                'phone_number': account.phone_number,
+                'created_at': account.created_at
+            }
+            for account in accounts
+        ]
+        return result
+    except Exception as e:
+        logger.exception(f"❌ Ошибка получения аккаунтов пользователя {user_id}: {e}")
+        return []
+
+
+"""Работа с аккаунтами"""
+
+
+class Account(Model):
+    """Модель аккаунта"""
+    session_string = CharField(unique=True)  # уникальность для защиты от дубликатов
+    phone_number = CharField()  # номер телефона аккаунта
+
+    class Meta:
+        database = db
+        table_name = 'account'
+
+
+class AccountFree(Model):
+    """Свободные аккаунты для подключения, которые подключает администратор бота"""
+    session_string = CharField(unique=True)  # Уникальность для защиты от дубликатов
+    phone_number = CharField()  # Номер телефона аккаунта
+
+    class Meta:
+        database = db
+        table_name = 'account_free'
+
+
+def write_account_to_db(session_string, phone_number):
+    """
+    Запись аккаунта в базу данных
+    :param phone_number: Номер телефона аккаунта
+    :param session_string: Строка сессии
+    """
+    try:
+        Account.insert(session_string=session_string, phone_number=phone_number).on_conflict(action='IGNORE').execute()
+    except Exception as e:
+        logger.exception("database_operation_error", error=e)
+
+
+def getting_free_account():
+    """
+    Получение свободных аккаунтов для подключения
+    :return: Список аккаунтов
+    """
+    records = []
+    for record in AccountFree.select(AccountFree.session_string):
+        records.append(record.session_string)
+
+    return records
+
+
+def getting_account():
+    """
+    Получение аккаунтов из базы данных
+    :return: Список аккаунтов из базы данных
+    """
+    records = []
+    for record in Account.select(Account.session_string):
+        records.append(record.session_string)
+
+    return records
+
+
+async def delete_account_from_db(session_string: str) -> None:
+    """
+    Удаляет аккаунт из таблицы 'account' по session_string.
+    Перед удалением извлекает и логирует номер телефона.
+
+    :param session_string: Строка сессии аккаунта
+    :return: None
+    """
+    try:
+        # Ищем аккаунт по session_string
+        account = Account.get(Account.session_string == session_string)
+        phone_number = account.phone_number
+        logger.info(f"Найден аккаунт для удаления: {phone_number}")
+        # Удаляем запись
+        account.delete_instance()
+        logger.info(f"Аккаунт {phone_number} успешно удалён из базы данных.")
+    except DoesNotExist:
+        logger.info(f"Аккаунт с session_string='{session_string}' не найден в базе.")
+    except Exception as e:
+        logger.exception("Ошибка при удалении аккаунта")
+        logger.info(f"Ошибка при удалении аккаунта: {e}")
+
+
+class User(BaseModel):
+    """
+    Модель для хранения основных данных пользователя Telegram.
+
+    Используется для регистрации пользователей при первом запуске бота (/start)
+    и хранения их профиля и языка интерфейса. Таблица общая для всех пользователей.
+
+    Attributes:
+        user_id (IntegerField): Уникальный идентификатор пользователя Telegram (первичный ключ).
+        username (CharField, optional): Telegram-ник пользователя (может быть None).
+        first_name (CharField, optional): Имя пользователя.
+        last_name (CharField, optional): Фамилия пользователя.
+        language (CharField): Язык интерфейса бота ('ru', 'en' или 'unset' при первом запуске).
+
+    Meta:
+        table_name (str): Имя таблицы в базе данных — 'user' (по умолчанию от имени класса).
+    """
+    user_id = IntegerField(unique=True)
+    username = CharField(null=True)
+    first_name = CharField(null=True)
+    last_name = CharField(null=True)
+    language = CharField(default="ru")  # "ru" или "en"
+    stars = IntegerField(default=0)
+    last_free_download_at = DateTimeField(null=True)
+
+
+def create_keywords_model(user_id):
+    """
+    Динамически создаёт модель Peewee для хранения ключевых слов конкретного пользователя.
+
+    Модель используется для отслеживания слов или фраз, по которым пользователь хочет фильтровать сообщения в группах.
+    Создаётся отдельная таблица для каждого пользователя по шаблону 'keywords_<user_id>'.
+
+    :param user_id: (int) Уникальный идентификатор пользователя Telegram.
+    :return peewee.Model: Класс модели Peewee с полями `id` и `user_keyword`.
+
+    Model Fields:
+        id (AutoField):
+            Автоинкрементный первичный ключ.
+        user_keyword (CharField):
+            Уникальное ключевое слово для поиска в сообщениях.
+    """
+
+    class Keywords(BaseModel):
+        id = AutoField()  # <-- добавляем первичный ключ (иначе всё пишется в одну строку)
+        user_keyword = CharField(unique=True)  # Поле для хранения ключевого слова
+
+        class Meta:
+            table_name = f"{user_id}_keywords"  # Имя таблицы
+
+    return Keywords  # Возвращаем класс модели
+
+
+def create_group_model(user_id):
+    """
+    Динамически создаёт модель Peewee для хранения технической группы пользователя.
+
+    Модель используется для сохранения одного Telegram-чата (группы или канала),
+    куда бот будет пересылать найденные сообщения, содержащие ключевые слова.
+    Создаётся отдельная таблица для каждого пользователя по шаблону 'group_<user_id>'.
+
+    :param user_id: (int) Уникальный идентификатор пользователя Telegram.
+    :return peewee.Model: Класс модели Peewee с полями `id` и `user_group`.
+
+    Model Fields:
+        id (AutoField):
+            Автоинкрементный первичный ключ.
+        user_group (CharField):
+            Уникальное имя технической группы (например, @my_alerts_channel).
+    """
+
+    class Group(BaseModel):
+        id = AutoField()  # <-- добавляем первичный ключ (иначе всё пишется в одну строку)
+        user_group = CharField(unique=True)  # Поле для хранения технической группы
+
+        class Meta:
+            table_name = f"{user_id}_group"  # Имя таблицы
+
+    return Group  # Возвращаем класс модели
+
+
+"""
+Работа с моделью TelegramGroup. База групп и каналов в Telegram.
+"""
+
+
+class TelegramGroup(BaseModel):
+    """
+    Модель для хранения данных о найденных Telegram-группах и каналах.
+
+    Используется для централизованного хранения информации о группах,
+    обнаруженных с помощью AI-поиска (через Groq). Позволяет избежать
+    повторного поиска и дублирования. Таблица общая для всех пользователей.
+
+    Attributes:
+        telegram_id (IntegerField): Уникальный ID группы в Telegram (первичный ключ).
+        group_hash (CharField): Уникальный хеш или ID группы, используется как ключ.
+        name (CharField): Отображаемое название группы или канала.
+        username (CharField, optional): Юзернейм (@username), может отсутствовать.
+        description (TextField, optional): Описание группы из Telegram.
+        participants (IntegerField): Количество участников, по умолчанию 0.
+        category (CharField, optional): Категория, определённая ИИ (например, 'технологии').
+        group_type (CharField): Тип чата — 'group', 'channel' или 'link'.
+        language (CharField): Язык группы/канала — 'ru', 'en' или ''.
+        link (CharField): Прямая ссылка на чат (https://t.me/...).
+        availability (CharField): Статус активности группы
+        date_added (DateTimeField): Дата и время добавления записи, по умолчанию — текущее время.
+
+    Meta:
+        table_name (str): Имя таблицы в базе данных — 'telegram_groups'.
+    """
+    telegram_id = IntegerField(null=True, unique=True)  # Новое поле: Telegram entity ID
+    group_hash = CharField(null=True)  # ID группы или хеш username
+    name = CharField()  # Название группы
+    username = CharField(null=True)  # @username если есть
+    description = TextField(null=True)  # Описание
+    participants = IntegerField(default=0)  # Количество участников
+    category = CharField(null=True)  # Категория (определяется AI)
+    group_type = CharField()  # 'group', 'channel', 'link'
+    language = CharField(null=True, default='')  # ru/en язык группы / канала
+    link = CharField(null=True, default='')  # Ссылка на группу (может отсутствовать)
+    availability = CharField(null=True)  # Статус активности
+    date_added = DateTimeField(default=datetime.now)  # Дата добавления
+
+    class Meta:
+        table_name = 'telegram_groups'
+
+
+def clean_telegram_id_duplicates():
+    """Удаляет все дубликаты по telegram_id, оставляя самую свежую запись"""
+    deleted_count = 0
+
+    # Находим все telegram_id с дублями
+    duplicates = (
+        TelegramGroup
+        .select(
+            TelegramGroup.telegram_id,
+            fn.COUNT(TelegramGroup.id).alias("cnt")
+        )
+        .where(TelegramGroup.telegram_id.is_null(False))
+        .group_by(TelegramGroup.telegram_id)
+        .having(fn.COUNT(TelegramGroup.id) > 1)
+    )
+
+    for dup in duplicates:
+        tid = dup.telegram_id
+
+        # Оставляем самую новую запись
+        keep = (
+            TelegramGroup
+            .select(TelegramGroup.id)
+            .where(TelegramGroup.telegram_id == tid)
+            .order_by(TelegramGroup.date_added.desc())
+            .limit(1)
+            .get()
+        )
+
+        # Удаляем все остальные
+        deleted = (
+            TelegramGroup
+            .delete()
+            .where(
+                (TelegramGroup.telegram_id == tid) &
+                (TelegramGroup.id != keep.id)
+            )
+            .execute()
+        )
+        deleted_count += deleted
+
+    logger.info(f"Очищено дубликатов по telegram_id: {deleted_count}")
+    return deleted_count
+
+
+async def get_groups_without_category() -> list[dict]:
+    """Получает группы без категории (в отдельном потоке для БД)"""
+
+    def _fetch():
+        if db.is_closed():
+            db.connect(reuse_if_open=True)
+
+        groups = TelegramGroup.select().where(
+            (TelegramGroup.username.is_null(False)) &
+            (TelegramGroup.category == '')
+        )
+
+        return [
+            {
+                "telegram_id": group.telegram_id,
+                "name": group.name,
+                "username": group.username,
+                "description": group.description,
+                "group_type": group.group_type,
+            }
+            for group in groups
+        ]
+
+    try:
+        return await sync_to_async(_fetch, thread_sensitive=True)()
+    except Exception as e:
+        logger.exception(f"❌ Ошибка получения групп: {e}")
+        return []
+
+
+def migrate_categories_to_lowercase():
+    """
+    Миграция: приводит все существующие категории к нижнему регистру.
+    Запускать один раз после обновления логики.
+    """
+    if db.is_closed():
+        db.connect(reuse_if_open=True)
+
+    try:
+        groups = TelegramGroup.select().where(
+            TelegramGroup.category.is_null(False) &
+            (TelegramGroup.category != '')
+        )
+
+        updated_count = 0
+        for group in groups:
+            if group.category != group.category.lower():
+                group.category = group.category.lower()
+                group.save()
+                updated_count += 1
+
+        logger.info(f"✅ Миграция категорий завершена: обновлено {updated_count} записей")
+        return updated_count
+    except Exception as e:
+        logger.exception(f"❌ Ошибка миграции категорий: {e}")
+        return 0
+
+
+def getting_number_records_database():
+    """Получает количество записей в базе данных о найденных группах пользователями"""
+    return TelegramGroup.select().count()
+
+
+def get_target_group_count(user_id: int) -> int:
+    """
+    Получает количество технических групп (куда пересылаются уведомления),
+    подключённых конкретным пользователем.
+
+    Ищет записи в таблице `group_{user_id}`.
+
+    :param user_id: (int) ID пользователя Telegram.
+    :return int: Количество записей (обычно 0 или 1, так как группа одна).
+    """
+    GroupModel = create_group_model(user_id)
+
+    # Убедимся, что таблица существует, иначе count() вызовет ошибку
+    if not GroupModel.table_exists():
+        return 0
+
+    return GroupModel.select().count()
+
+
+def get_session_count(user_id: int) -> int:
+    """
+    Подсчитывает количество подключенных аккаунтов пользователя в базе данных.
+
+    :param user_id: (int) ID пользователя Telegram.
+    :return int: Количество сессий (0, если аккаунты отсутствуют).
+    """
+    try:
+        return UserAccountsTable.select().where(UserAccountsTable.user_id == user_id).count()
+    except Exception as e:
+        logger.error(f"Ошибка при получении количества сессий пользователя {user_id}: {e}")
+        return 0
+
+
+def get_keywords_count(user_id: int):
+    """
+    Получение количества ключевых слов для отслеживания
+    :param user_id:
+    :return int: Количество записей (обычно 0 или 1, так как группа одна).
+    """
+
+    Keywords = create_keywords_model(user_id)
+
+    # Убедимся, что таблица существует, иначе count() вызовет ошибку
+    if not Keywords.table_exists():
+        return 0
+
+    return Keywords.select().count()
