@@ -26,7 +26,6 @@ const translations = {
         active_keywords: "Ключевые слова",
         connected_sessions: "Подключено аккаунтов",
         groups_db: "Групп в базе",
-        target_group_title: "Группа для пересылки",
         save: "Сохранить",
         add: "Добавить",
         upload_txt: "Перетащите файл <strong>.txt</strong> со списком или <span>выберите</span>",
@@ -64,7 +63,6 @@ const translations = {
         active_keywords: "Active Keywords",
         connected_sessions: "Connected Sessions",
         groups_db: "Telegram Groups DB",
-        target_group_title: "Forwarding Settings",
         save: "Save",
         add: "Add",
         upload_txt: "Drag & Drop <strong>.txt</strong> file with channels or <span>browse</span>",
@@ -203,7 +201,6 @@ function applyTranslations() {
     document.querySelector("[onclick=\"switchTab('admin')\"] span").innerText = "Admin";
     
     // Inline headers
-    document.querySelector("#tab-dashboard .card h3").innerHTML = `<i class="fa-solid fa-gears icon-inline"></i> ${t.target_group_title}`;
     document.querySelector("#tab-channels .card h3").innerHTML = `<i class="fa-solid fa-square-plus icon-inline"></i> ${translations[userLanguage] === translations.ru ? "Добавить каналы" : "Add Channels to Track"}`;
     document.querySelector("#tab-keywords .card h3").innerHTML = `<i class="fa-solid fa-key icon-inline"></i> ${translations[userLanguage] === translations.ru ? "Добавить ключевое слово" : "Add Alert Keyword"}`;
     document.querySelector("#tab-accounts .card h3").innerHTML = `<i class="fa-solid fa-user-plus icon-inline"></i> ${translations[userLanguage] === translations.ru ? "Подключить аккаунт Telegram" : "Connect Telegram Account"}`;
@@ -261,11 +258,6 @@ async function loadDashboardData() {
             document.getElementById("stat-keywords").innerText = data.stats.keywords;
             document.getElementById("stat-accounts").innerText = data.stats.connected_accounts;
             document.getElementById("stat-db-groups").innerText = data.stats.db_total_groups;
-            
-            // Target group
-            if (data.stats.target_group_username) {
-                document.getElementById("target-group-input").value = data.stats.target_group_username;
-            }
             
             // Tracking status UI
             setTrackingStatusUI(data.tracking_active);
@@ -405,31 +397,6 @@ function setupEventListeners() {
             showNotification("Operation failed.", "danger");
         } finally {
             btn.disabled = false;
-        }
-    });
-
-    // Save target/forwarding group
-    document.getElementById("btn-save-target-group").addEventListener("click", async () => {
-        const input = document.getElementById("target-group-input");
-        const username = input.value.trim();
-        if (!username) return;
-        
-        const formData = new FormData();
-        formData.append("username", username);
-        
-        try {
-            const res = await apiRequest("/api/target-group", {
-                method: "POST",
-                body: formData
-            });
-            if (res.ok) {
-                showNotification(translations[userLanguage].success_saved, "success");
-                loadDashboardData();
-            } else {
-                showNotification(translations[userLanguage].failed_save, "danger");
-            }
-        } catch (e) {
-            showNotification("Network error", "danger");
         }
     });
 

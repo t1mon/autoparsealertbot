@@ -23,7 +23,6 @@ def menu_user_admin_rows(lang: str = "ru", tracking_active: bool = False) -> lis
     )
     rows: list[list[InlineKeyboardButton]] = [
         tracking_row,
-        [_btn(t("check_group_for_keywords_button", lang=lang), "menu:check_keywords", "primary")],
         [
             _btn(t("ai_search_button", lang=lang), "menu:ai", "primary"),
             _btn(t("get_database_button", lang=lang), "menu:database", "primary"),

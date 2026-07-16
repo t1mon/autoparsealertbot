@@ -176,32 +176,3 @@ async def assign_categories(message: Message, client, model):
     except Exception as e:
         logger.exception("assign_categories_error", error=e)
         await status_msg.edit_text(t("ai_category_error", lang=user_lang, error=str(e)))
-
-
-@router.callback_query(F.data == "menu:admin:stats_categories")
-async def get_groups_without_category_message(callback: CallbackQuery):
-    """Информация о группах без категории (если понадобится отдельная кнопка)."""
-    await callback.answer()
-    user = User.get(User.user_id == callback.from_user.id)
-    user_lang = user.language if user.language != "unset" else "ru"
-
-    def _count():
-        if db.is_closed():
-            db.connect()
-        return (
-            TelegramGroup.select()
-            .where((TelegramGroup.category.is_null(True)) | (TelegramGroup.category == ""))
-            .count()
-        )
-
-    count = await sync_to_async(_count, thread_sensitive=True)()
-
-    await callback.message.answer(
-        t("ai_category_stats_title", lang=user_lang)
-        + "\n\n"
-        + t("ai_category_no_category_count", lang=user_lang, count=count)
-        + "\n\n"
-        + t("ai_category_run_ai", lang=user_lang),
-        reply_markup=admin_keyboard(lang=user_lang),
-        parse_mode="HTML",
-    )

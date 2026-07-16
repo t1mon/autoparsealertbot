@@ -123,15 +123,11 @@ def settings_keyboard(lang: str = "ru") -> InlineKeyboardMarkup:
                 _btn(t("keywords_list_button", lang=lang), "menu:settings:keywords", "primary"),
                 _btn(t("tracking_links_button", lang=lang), "menu:settings:links", "primary"),
             ],
-            [
-                _btn(t("connect_account_button", lang=lang), "menu:settings:connect_account", "success"),
-                _btn(t("connect_group_for_messages_button", lang=lang), "menu:settings:connect_group", "success"),
-            ],
+            [_btn(t("connect_account_button", lang=lang), "menu:settings:connect_account", "success")],
             [
                 _btn(t("change_language_button", lang=lang), "menu:settings:change_lang", "primary"),
                 _btn(t("topup_stars_button", lang=lang), "menu:settings:stars", "primary"),
             ],
-            [_btn("🔄 Передать настройки пользователю", "menu:settings:transfer", "primary")],
             [_btn(t("back_button", lang=lang), "back:main", "danger")],
         ]
     )
@@ -141,22 +137,6 @@ def connect_keyboard_account(lang: str = "ru") -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [_btn(t("connect_account_button", lang=lang), "menu:connect:account", "success")],
-            [_btn(t("connect_free_account_button", lang=lang), "menu:connect:free", "success")],
-            [_btn(t("back_button", lang=lang), "back:main", "danger")],
-        ]
-    )
-
-
-def connect_grup_keyboard_tech(lang: str = "ru") -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                _btn(
-                    t("connect_group_for_messages_button", lang=lang),
-                    "menu:settings:connect_group",
-                    "success",
-                )
-            ],
             [_btn(t("back_button", lang=lang), "back:settings", "danger")],
         ]
     )

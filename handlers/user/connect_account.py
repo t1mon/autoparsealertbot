@@ -1,6 +1,3 @@
-import os
-import random
-import shutil
 from pathlib import Path
 
 import structlog
@@ -10,12 +7,11 @@ from aiogram.types import CallbackQuery, Message
 from telethon.sessions import StringSession
 
 from account_manager.auth import CheckingAccountsValidity, get_account_info
-from database.database import User, getting_free_account, AccountFree
+from database.database import User, write_account_to_user_table
 from handlers.user.menu_helpers import edit_or_answer
 from keyboards.user.keyboards import back_keyboard, connect_keyboard_account
 from locales.locales import t
 from states.states import MyStates
-from database.database import write_account_to_user_table
 
 router = Router(name=__name__)
 logger = structlog.get_logger(__name__)
@@ -30,67 +26,6 @@ async def handle_connect_account_menu(callback: CallbackQuery, state: FSMContext
         callback,
         t("connect_account", lang=user_lang),
         reply_markup=connect_keyboard_account(lang=user_lang),
-    )
-
-
-@router.callback_query(F.data == "menu:connect:free")
-async def handle_connect_account_free(callback: CallbackQuery, state: FSMContext):
-    """
-    Обработчик команды "🔐 Подключить свободный аккаунт".
-
-    Очищает текущее состояние FSM, регистрирует пользователя в базе данных (если его ещё нет)
-    с языком по умолчанию "unset", и отправляет пользователю сообщение с приглашением
-    🔐 Подключить свободный аккаунт через автоматическое подключение свободного аккаунта.
-
-    :param message: (Message) Объект входящего сообщения от пользователя.
-    :param state: (FSMContext) Контекст машины состояний, используется для сброса текущего состояния.
-    """
-    await state.clear()  # Завершаем текущее состояние машины состояния
-    await callback.answer()
-    message = callback.message
-
-    # Создаём пользователя с language = "unset", если его нет
-    user, created = User.get_or_create(
-        user_id=callback.from_user.id,
-        defaults={
-            "username": callback.from_user.username,
-            "first_name": callback.from_user.first_name,
-            "last_name": callback.from_user.last_name,
-            "language": "unset"  # ← ключевое: "unset" = язык не выбран
-        }
-    )
-    user_lang = user.language if user.language != "unset" else "ru"
-
-    # Подключение свободного аккаунта
-    free_accounts = list(AccountFree.select())
-    if not free_accounts:
-        logger.warning(f"Нет доступных свободных аккаунтов для пользователя {user.user_id}")
-        await message.answer(
-            text=t("no_free_accounts", lang=user_lang),
-            reply_markup=back_keyboard(lang=user_lang, callback_data="back:settings")
-        )
-        return
-
-    # Выбираем случайный свободный аккаунт
-    selected_account = random.choice(free_accounts)
-    session_string = selected_account.session_string
-    phone_number = selected_account.phone_number
-
-    logger.info(f"Подключаем свободный аккаунт {phone_number} пользователю {user.user_id}")
-
-    # Записываем в персональную таблицу аккаунтов пользователя
-    write_account_to_user_table(
-        user_id=user.user_id,
-        session_string=session_string,
-        phone_number=phone_number
-    )
-
-    # Удаляем аккаунт из свободных аккаунтов, чтобы другие не могли его использовать
-    selected_account.delete_instance()
-
-    await message.answer(
-        text=t("account_connected_free", lang=user_lang),
-        reply_markup=back_keyboard(lang=user_lang, callback_data="back:settings")
     )
 
 

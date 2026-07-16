@@ -544,20 +544,6 @@ async def handle_category_page(callback: CallbackQuery):
     )
 
 
-@router.callback_query(F.data.startswith("menu:catpage:"))
-async def paginate_categories(callback: CallbackQuery):
-    user = User.get(User.user_id == callback.from_user.id)
-    user_lang = user.language if user.language != "unset" else "ru"
-    try:
-        page = max(0, int(callback.data.rsplit(":", 1)[-1]))
-    except ValueError:
-        page = 0
-    await callback.answer()
-    await callback.message.edit_reply_markup(
-        reply_markup=get_categories_keyboard(lang=user_lang, page=page)
-    )
-
-
 @router.callback_query(F.data.startswith("menu:cat:"))
 async def handle_category_selection(callback: CallbackQuery, state: FSMContext):
     """

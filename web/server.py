@@ -24,7 +24,7 @@ from core.config import (
 from core.telegram_utils import normalize_telegram_username
 from database.database import (
     db, User, TelegramGroup, Groups, Account, UserAccountsTable,
-    create_keywords_model, create_group_model, get_user_accounts, get_tracked_channels_count, get_target_group_count,
+    create_keywords_model, get_user_accounts, get_tracked_channels_count,
     get_session_count, get_keywords_count,
     getting_number_records_database, get_all_questions, getting_account
 )
@@ -157,17 +157,8 @@ async def get_status(user_data: dict = Depends(get_current_tg_user)):
     # Get stats
     groups_count = getting_number_records_database()
     session_count = get_session_count(user_id=user_id)
-    group_count = get_target_group_count(user_id=user_id)
     tracked_channels = get_tracked_channels_count(user_id=user_id)
     keywords_count = get_keywords_count(user_id=user_id)
-
-    # Get current target group username
-    GroupModel = create_group_model(user_id)
-    target_group = None
-    if GroupModel.table_exists():
-        groups = list(GroupModel.select())
-        if groups:
-            target_group = groups[0].user_group
 
     tracking_active = str(user_id) in active_clients
     is_admin = user_id in ADMIN_USER_IDS
@@ -183,10 +174,8 @@ async def get_status(user_data: dict = Depends(get_current_tg_user)):
             "version": "0.0.9",
             "db_total_groups": groups_count,
             "connected_accounts": session_count,
-            "target_groups": group_count,
             "tracked_channels": tracked_channels,
             "keywords": keywords_count,
-            "target_group_username": target_group
         },
         "tracking_active": tracking_active
     }
@@ -370,41 +359,6 @@ async def upload_channels_file(file: UploadFile = File(...), user_data: dict = D
         "skipped": skipped_count,
         "errors": errors_count
     }
-
-
-# Target Group Configuration
-@app.get("/api/target-group")
-async def get_target_group(user_data: dict = Depends(get_current_tg_user)):
-    user_id = user_data["id"]
-    GroupModel = create_group_model(user_id)
-    if not GroupModel.table_exists():
-        return {"username": None}
-
-    groups = list(GroupModel.select())
-    if groups:
-        return {"username": groups[0].user_group}
-    return {"username": None}
-
-
-@app.post("/api/target-group")
-async def set_target_group(username: str = Form(...), user_data: dict = Depends(get_current_tg_user)):
-    user_id = user_data["id"]
-    username = normalize_telegram_username(username)
-    if not username:
-        raise HTTPException(status_code=400, detail="Invalid Telegram username or link")
-
-    GroupModel = create_group_model(user_id)
-    if not GroupModel.table_exists():
-        GroupModel.create_table()
-
-    # Clear previous group
-    GroupModel.delete().execute()
-
-    try:
-        GroupModel.create(user_group=username)
-        return {"status": "ok", "username": username}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
 
 # Telegram Accounts Management
