@@ -19,6 +19,8 @@ class MyStates(StatesGroup):
     waiting_for_session_file = State()  # Ждем файл в формате session
 
     waiting_for_session_file_user = State()  # Ждем файл в формате session
+    entering_stopword = State()  # Ожидание ввода стоп-слов
+    waiting_for_match_check = State()  # Проверка текста на совпадение с ключами
 
 
 class MyStatesParsing(StatesGroup):

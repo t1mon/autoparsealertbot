@@ -2,26 +2,26 @@
 
 ## Продукт
 
-- [ ] P2: тихие часы / не слать алерты ночью
-- [ ] P2: анти-спам: не дублировать один и тот же пост (уже есть in-memory `forwarded_messages` — вынести в Redis с TTL)
-- [ ] P2: дайджест: N срабатываний за час одним сообщением
-- [ ] P2: база совпадений (история/выгрузка) → [08-leads.md](08-leads.md)
-- [ ] P2: фильтр по типу чата (только каналы / только группы)
-- [ ] P2: чёрный список слов (не алертить, если есть стоп-слово)
-- [ ] P2: шаблон алерта настраиваемый → см. [07-alerts.md](07-alerts.md)
-- [ ] P2: кнопка «открыть в Telegram» уже есть в ссылке — добавить «в избранное» / «игнор канал на 24ч»
+- [x] P2: тихие часы / не слать алерты ночью (`menu:quiet_hours`, лиды пишутся)
+- [x] P2: анти-спам / Redis-дедуп алертов (`core/alert_dedup.py`, TTL 7д; fallback в RAM)
+- [x] P2: дайджест: N срабатываний за интервал одним сообщением (`menu:digest`)
+- [x] P2: база совпадений (история/выгрузка) → [08-leads.md](08-leads.md)
+- [x] P2: фильтр по типу чата (только каналы / только группы) — `menu:chat_filter`
+- [x] P2: чёрный список слов (не алертить, если есть стоп-слово) — `menu:stopwords`
+- [x] P2: шаблон алерта настраиваемый (`menu:alert_template`: full/compact/minimal) → [07-alerts.md](07-alerts.md)
+- [x] P2: кнопка «открыть в Telegram» + «игнор канал на 24ч» под алертом
 
 ## Надёжность
 
-- [ ] P1: Redis-дедуп алертов и `forwarded_messages`
-- [ ] P1: явный reconnect Telethon при обрыве
-- [ ] P2: метрики: uptime tracking, floodwaits, matches/hour
-- [ ] P2: healthcheck endpoint уже через FastAPI — добавить `/health/redis` + tracking count
+- [x] P1: Redis-дедуп алертов (`alert:dedup:{user}:{chat}:{msg}`, SET NX + TTL)
+- [x] P1: явный reconnect Telethon при обрыве (`run_until_disconnected` + backoff, `connection_retries=None`)
+- [x] P2: метрики: uptime tracking, floodwaits, matches/hour (`core/metrics.py`, `/health`)
+- [x] P2: healthcheck endpoint — `/health` + `/health/redis` + tracking count
 
 ## Админка
 
-- [ ] P2: кто сейчас в tracking, сколько каналов/ключей
-- [ ] P2: принудительный stop tracking пользователя
+- [x] P2: кто сейчас в tracking, сколько каналов/ключей (`menu:admin:tracking`)
+- [x] P2: принудительный stop tracking пользователя
 - [ ] P2: выгрузка статистики ложных срабатываний (если будет лог причин)
 
 ## Техдолг / архитектура
@@ -30,13 +30,13 @@
 - [ ] P1: не плодить динамические SQLite-таблицы `{user_id}_keywords` без нужды — оценить одну таблицу `keywords(user_id, text)`
 - [ ] P2: разнести `handlers/user/handlers.py` / `pars_ai.py` на более мелкие роутеры
 - [ ] P2: docker: volume на код **или** всегда `compose up --build` в README (сейчас код в образе — легко забыть rebuild)
-- [ ] P2: тесты на `core/keyword_match.py` (pytest)
+- [x] P2: тесты на `core/keyword_match.py` (pytest)
 - [ ] P2: CI: lint + pytest
 
 ## Документация для пользователей
 
-- [ ] P1: короткая «как запустить за 3 шага» в `/start` и в инструкции
-- [ ] P2: обновить `doc/doc.md` под Inline и новый кабинет
+- [x] P1: короткая «как запустить за 3 шага» в `/start` и в инструкции
+- [x] P2: обновить `doc/doc.md` под Inline и новый кабинет (блок быстрого старта)
 
 ## Не делать сейчас (сознательно)
 

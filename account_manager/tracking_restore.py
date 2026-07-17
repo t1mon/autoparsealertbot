@@ -5,8 +5,10 @@ import structlog
 logger = structlog.get_logger(__name__)
 
 from account_manager.parser import begin_tracking, filter_messages
+from core.access import is_user_allowed
 from core.mock_message import MockMessage
 from core import tracking_store
+from core.tracking_access import purge_disallowed_tracking
 from database.database import User
 from keyboards.user.keyboards import resolve_main_keyboard
 from locales.locales import t
@@ -27,14 +29,23 @@ async def _run_restored_tracking(user_id: int, user, mock_msg: MockMessage, stop
 
 async def restore_active_tracking() -> None:
     """Восстанавливает активные отслеживания из Redis после перезапуска процесса."""
+    await purge_disallowed_tracking()
+
     active_ids = await tracking_store.list_active()
     if not active_ids:
         logger.info("Нет активных отслеживаний для восстановления")
         return
 
-    logger.info(f"Восстановление отслеживания для {len(active_ids)} пользователей: {active_ids}")
+    allowed_ids = [uid for uid in active_ids if is_user_allowed(int(uid))]
+    if len(allowed_ids) < len(active_ids):
+        logger.info(
+            "Пропущены отслеживания без доступа",
+            skipped=len(active_ids) - len(allowed_ids),
+        )
 
-    for user_id in active_ids:
+    logger.info(f"Восстановление отслеживания для {len(allowed_ids)} пользователей: {allowed_ids}")
+
+    for user_id in allowed_ids:
         user = User.get_or_none(User.user_id == user_id)
         if not user:
             logger.warning(f"Пользователь {user_id} не найден в БД — снимаем отслеживание из Redis")
@@ -52,6 +63,7 @@ async def restore_active_tracking() -> None:
             reply_markup=resolve_main_keyboard(
                 user.language,
                 tracking_active=True,
+                user_id=user_id,
                 is_admin=user_id in ADMIN_USER_IDS,
             ),
         )

@@ -1,26 +1,50 @@
 """Умное совпадение ключевых слов / фраз в тексте сообщений.
 
-Учитывает:
-- вхождение фразы / слова (contains) после нормализации;
-- опечатки (нечёткое сравнение токенов);
-- простые русские словоформы (белый / белые / белых);
-- частичное совпадение многословной фразы (большинство значимых слов).
+Режимы:
+- strict — только нормализованная фраза целиком (contains)
+- smart (default) — стем/fuzzy для длинных токенов; все слова фразы; алиасы вк↔vk
+- loose — как старый мягкий режим (2 слова → первое; 3+ → majority)
 """
 
 from __future__ import annotations
 
 import re
 import unicodedata
+from dataclasses import dataclass
 from difflib import SequenceMatcher
+
+MATCH_MODES = ("strict", "smart", "loose")
+DEFAULT_MATCH_MODE = "smart"
+
+# exact — нормализованная фраза целиком; tokens — все слова; loose — частичное
+MATCH_REASONS = ("exact", "tokens", "loose")
+
+
+@dataclass(frozen=True)
+class MatchDetail:
+    keyword: str
+    mode: str
+    reason: str  # exact | tokens | loose
+    hit_tokens: tuple[str, ...] = ()
+    miss_tokens: tuple[str, ...] = ()
 
 _NON_WORD = re.compile(r"[^\w]+", re.UNICODE)
 _WS = re.compile(r"\s+")
 
-# Короткие слова (vpn, вк) — только точное совпадение, без fuzzy/stem
 _MIN_SMART_LEN = 4
 _FUZZY_RATIO = 0.82
 
-# Частые русские окончания (длинные первыми)
+_ALIAS_GROUPS: tuple[frozenset[str], ...] = (
+    frozenset({"вк", "vk", "вконтакте"}),
+    frozenset({"тг", "tg", "телеграм", "telegram"}),
+    frozenset({"ютуб", "youtube", "yt"}),
+)
+
+_ALIASES: dict[str, frozenset[str]] = {}
+for _group in _ALIAS_GROUPS:
+    for _token in _group:
+        _ALIASES[_token] = _group
+
 _RU_SUFFIXES = (
     "иями",
     "ями",
@@ -67,6 +91,11 @@ _RU_SUFFIXES = (
 )
 
 
+def normalize_match_mode(mode: str | None) -> str:
+    value = (mode or DEFAULT_MATCH_MODE).strip().lower()
+    return value if value in MATCH_MODES else DEFAULT_MATCH_MODE
+
+
 def normalize_text(text: str) -> str:
     """Нижний регистр, ё→е, пунктуация → пробел, схлопывание пробелов."""
     if not text:
@@ -77,7 +106,6 @@ def normalize_text(text: str) -> str:
 
 
 def _stem_ru(word: str) -> str:
-    """Грубый стем для RU: срезаем типичные окончания, оставляя основу ≥ 3 символов."""
     if len(word) < _MIN_SMART_LEN:
         return word
     for suf in _RU_SUFFIXES:
@@ -94,17 +122,27 @@ def _similarity(a: str, b: str) -> float:
     return SequenceMatcher(None, a, b).ratio()
 
 
-def _token_matches(kw_token: str, msg_tokens: list[str], msg_stems: set[str]) -> bool:
-    """Одно слово ключа совпало с каким-то токеном сообщения."""
-    if kw_token in msg_tokens or kw_token in msg_stems:
-        return True
+def _alias_set(token: str) -> frozenset[str]:
+    return _ALIASES.get(token, frozenset({token}))
 
-    kw_stem = _stem_ru(kw_token)
-    if kw_stem in msg_stems or kw_stem in msg_tokens:
+
+def _token_matches(kw_token: str, msg_tokens: list[str], msg_stems: set[str]) -> bool:
+    candidates = _alias_set(kw_token)
+
+    msg_expanded: set[str] = set()
+    for mt in msg_tokens:
+        msg_expanded |= _alias_set(mt)
+    if candidates & msg_expanded:
+        return True
+    if candidates & msg_stems:
         return True
 
     if len(kw_token) < _MIN_SMART_LEN:
         return False
+
+    kw_stem = _stem_ru(kw_token)
+    if kw_stem in msg_stems or kw_stem in msg_tokens:
+        return True
 
     for mt in msg_tokens:
         if len(mt) < _MIN_SMART_LEN:
@@ -118,57 +156,132 @@ def _token_matches(kw_token: str, msg_tokens: list[str], msg_stems: set[str]) ->
     return False
 
 
-def _needed_hits(token_count: int) -> int:
-    """Сколько слов фразы из 3+ достаточно (большинство)."""
+def _needed_hits_loose(token_count: int) -> int:
+    """Loose: для 3+ слов достаточно большинства."""
     if token_count <= 2:
         return token_count
     return (token_count + 1) // 2
 
 
-def keyword_matches(message_text: str, keyword: str) -> bool:
-    """Проверяет, содержит ли сообщение ключевое слово или фразу."""
-    kw = normalize_text(keyword)
+def explain_keyword_match(
+    message_text: str,
+    keyword: str,
+    mode: str = DEFAULT_MATCH_MODE,
+) -> MatchDetail | None:
+    """Детали совпадения (или None, если не совпало)."""
+    mode = normalize_match_mode(mode)
+    raw = str(keyword).strip()
+    if not raw:
+        return None
+
+    kw = normalize_text(raw)
     if not kw:
-        return False
+        return None
 
     msg = normalize_text(message_text)
     if not msg:
-        return False
+        return None
 
-    # 1) Точная фраза / слово как подстрока
+    display_kw = raw.lower()
+
     if kw in msg:
-        return True
+        return MatchDetail(
+            keyword=display_kw,
+            mode=mode,
+            reason="exact",
+            hit_tokens=tuple(kw.split()),
+        )
+
+    if mode == "strict":
+        return None
 
     kw_tokens = kw.split()
     msg_tokens = msg.split()
     if not kw_tokens or not msg_tokens:
-        return False
+        return None
 
     msg_stems = {_stem_ru(t) for t in msg_tokens}
     hits = [_token_matches(token, msg_tokens, msg_stems) for token in kw_tokens]
+    hit_tokens = tuple(tok for tok, ok in zip(kw_tokens, hits) if ok)
+    miss_tokens = tuple(tok for tok, ok in zip(kw_tokens, hits) if not ok)
 
-    # 2) Все слова (с учётом опечаток / словоформ)
+    if mode == "smart":
+        if all(hits):
+            return MatchDetail(
+                keyword=display_kw,
+                mode=mode,
+                reason="tokens",
+                hit_tokens=hit_tokens,
+            )
+        return None
+
+    # loose
+    matched = False
     if all(hits):
-        return True
+        matched = True
+    elif len(kw_tokens) == 1:
+        matched = hits[0]
+    elif len(kw_tokens) == 2:
+        matched = hits[0]
+    else:
+        matched = sum(hits) >= _needed_hits_loose(len(kw_tokens))
 
-    # 3) Одно слово — уже проверено в hits[0]
-    if len(kw_tokens) == 1:
-        return hits[0]
+    if not matched:
+        return None
 
-    # 4) Фраза из 2 слов: достаточно первого слова («белые» из «белые списки»),
-    #    чтобы не ловить чужие «... списки» без «белые».
-    if len(kw_tokens) == 2:
-        return hits[0]
+    reason = "tokens" if all(hits) else "loose"
+    return MatchDetail(
+        keyword=display_kw,
+        mode=mode,
+        reason=reason,
+        hit_tokens=hit_tokens,
+        miss_tokens=miss_tokens if reason == "loose" else (),
+    )
 
-    # 5) Фраза из 3+ слов — большинство слов
-    return sum(hits) >= _needed_hits(len(kw_tokens))
+
+def keyword_matches(message_text: str, keyword: str, mode: str = DEFAULT_MATCH_MODE) -> bool:
+    """Проверяет, содержит ли сообщение ключевое слово или фразу."""
+    return explain_keyword_match(message_text, keyword, mode=mode) is not None
 
 
-def find_matching_keyword(message_text: str, keywords: list[str]) -> str | None:
-    """Первое совпавшее ключевое слово (lowercase), или None."""
+def find_matching_keyword_detail(
+    message_text: str,
+    keywords: list[str],
+    mode: str = DEFAULT_MATCH_MODE,
+) -> MatchDetail | None:
+    """Первое совпадение с причиной, или None."""
+    mode = normalize_match_mode(mode)
     for keyword in keywords:
         if not keyword or not str(keyword).strip():
             continue
-        if keyword_matches(message_text, str(keyword)):
-            return str(keyword).strip().lower()
+        detail = explain_keyword_match(message_text, str(keyword), mode=mode)
+        if detail:
+            return detail
     return None
+
+
+def find_all_matching_keyword_details(
+    message_text: str,
+    keywords: list[str],
+    mode: str = DEFAULT_MATCH_MODE,
+) -> list[MatchDetail]:
+    """Все совпавшие ключи с причинами (порядок как в списке ключей)."""
+    mode = normalize_match_mode(mode)
+    results: list[MatchDetail] = []
+    for keyword in keywords:
+        if not keyword or not str(keyword).strip():
+            continue
+        detail = explain_keyword_match(message_text, str(keyword), mode=mode)
+        if detail:
+            results.append(detail)
+    return results
+
+
+def find_matching_keyword(
+    message_text: str,
+    keywords: list[str],
+    mode: str = DEFAULT_MATCH_MODE,
+) -> str | None:
+    """Первое совпавшее ключевое слово (lowercase), или None."""
+    detail = find_matching_keyword_detail(message_text, keywords, mode=mode)
+    return detail.keyword if detail else None

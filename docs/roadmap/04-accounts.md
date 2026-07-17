@@ -25,19 +25,20 @@
 
 ## Задачи
 
-- [ ] P0: в welcome/статусе показывать активный аккаунт (phone / username)
-- [ ] P1: явный `active_account_id` у User (или флаг в таблице аккаунтов)
-- [ ] P1: экран списка аккаунтов + выбор активного
-- [ ] P1: `find_session_file` / старт tracking только по активному
-- [ ] P1: кнопка «проверить аккаунт» с понятным результатом
-- [ ] P2: авто-фейлover на другой аккаунт при FloodWait / AuthKey
+- [x] P0: в welcome/статусе показывать активный аккаунт (phone / username)
+- [x] P1: явный `is_active` у аккаунта в `UserAccountsTable`
+- [x] P1: экран списка аккаунтов + выбор активного (`menu:accounts`)
+- [x] P1: `find_session_file` / старт tracking только по активному
+- [x] P1: кнопка «проверить аккаунт» с понятным результатом
+- [x] P2: авто-фейлover на другой аккаунт при FloodWait (≥5 мин) / AuthKey (`_try_failover_client`)
 - [ ] P2: админ: обзор, у кого какой аккаунт и статус tracking
 
 ## Текущий код
 
+- UI: `handlers/user/connect_account.py` → `menu:accounts`
 - Старт: `handlers/user/handlers.py` → `find_session_file`
-- Session: `account_manager/session.py`
-- Подключение user: `handlers/user/connect_account.py`
+- Session: `account_manager/session.py` (`get_active_account`)
+- Подключение user: `.session` через `menu:accounts:connect`
 - Подключение admin: `handlers/admin/connecting_account.py`
-- Валидация: `account_manager/auth.py` (`CheckingAccountsValidity`)
-- БД: `get_session_count`, `get_user_accounts`, запись session_string
+- Валидация: кнопка `menu:accounts:check` + `account_manager/session._is_session_valid`
+- БД: `get_active_account`, `set_active_account`, `delete_user_account`, `get_user_accounts`

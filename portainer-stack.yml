@@ -1,0 +1,48 @@
+# Portainer Stack — AutoParseAlertBot
+# Код и данные на сервере: /opt/autoparsealertbot
+#
+# Сборка образа на сервере (один раз / после обновления кода):
+#   cd /opt/autoparsealertbot && docker build -t autoparsealertbot:latest .
+#
+# Portainer → Stacks → Add stack → Web editor (вставить этот файл)
+# или: docker compose -f /opt/autoparsealertbot/portainer-stack.yml up -d
+
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - /opt/autoparsealertbot/redis:/data
+    networks:
+      - apa_net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  bot:
+    image: autoparsealertbot:latest
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+    env_file:
+      - /opt/autoparsealertbot/.env
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      TZ: ${TIMEZONE:-UTC}
+    ports:
+      - "${PORT:-8000}:8000"
+    volumes:
+      - /opt/autoparsealertbot/data:/app/data
+      - /opt/autoparsealertbot/accounts:/app/accounts
+      - /opt/autoparsealertbot/logs:/app/logs
+    networks:
+      - apa_net
+
+networks:
+  apa_net:
+    driver: bridge

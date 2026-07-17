@@ -1,40 +1,117 @@
 # English localization
+access_denied_full =
+    🔒 <b>Closed beta</b>
+
+    Full access is by invitation only.
+    Contact the developer: { $developer }
+
+    Briefly describe your use case (niche, sample channels).
+access_denied_short =
+    🔒 Access by request only. Contact { $developer }
+access_contact_developer_button = 💬 Contact developer
+access_denied_group =
+    🔒 Closed beta. Use the bot in private chat @{ $bot_username }
+
+group_chat_use_private =
+    🤖 Bot settings and menu are available in private chat only.
+
+    Open @{ $bot_username } and send /start
+
+    In groups, only these commands work:
+    • <code>/bind_alerts TOKEN</code> — bind (token from settings)
+    • <code>/leads</code> — export leads
+group_chat_use_private_short =
+    Manage the bot in private chat @{ $bot_username }. Here: /bind_alerts and /leads
+group_chat_command_private =
+    This command works in private chat with @{ $bot_username } only
+group_chat_callback_private = Menu buttons work in private chat with the bot only
+group_chat_open_bot_button = 💬 Open bot
+
 welcome_ask_language =
     🌍 Hi! Please choose your interface language:
 welcome_message_template =
-    🤖 Welcome to the Telegram bot for tracking 🔍 keywords in groups and channels, as well as searching for groups and channels with AI!
+    📡 <b>Tracking:</b> { $tracking_status }
+    👤 <b>Account:</b> { $account_label }
+    🔑 <b>Keywords:</b> { $keywords_count }
+    📢 <b>Channels:</b> { $channels_enabled } enabled / { $channels_total } total
 
-    📋 <b>Version:</b> { $version }
-    📅 <b>Release date:</b> July 02, 2026
+    { $howto_block }{ $next_hint }
 
-    📊 <b>Groups/channels found by users:</b> { $groups_count }
+howto_3_steps =
+    🚀 <b>Start in 3 steps</b>
 
-    📱 <b>Connected accounts:</b> { $count }
-    📬 <b>Notifications:</b> delivered directly in this bot chat
-    🔍 <b>Keywords tracked:</b> { $keywords_count }
-    📡 <b>Channels being monitored:</b> { $get_groups }
+    <b>1. Account</b> — «My parsing» → Account → <code>.session</code> file
+    <b>2. Keywords</b> — what to look for (use «Test a message»)
+    <b>3. Channels</b> — add @channels and enable parsing ✅ in the list
 
-    🎉 <b>Main bot features:</b>
+    On the main screen tap <b>«Start»</b> — matches will arrive here.
+howto_3_steps_short =
+    🚀 <b>3 steps:</b> account → keywords → channels → «Start»
 
-    • 🤖 <b>AI Search:</b> find groups and channels using artificial intelligence
-    • 📥 <b>Get Database:</b> download the current database of found channels and groups
-    • 📚 <b>Instructions:</b> detailed guide on using the bot
-    • ⚙️ <b>Settings:</b> configure account connections, keywords, and filters
+next_step_account = 👉 Next: connect a Telegram account (.session)
+next_step_keywords = 👉 Next: add at least one keyword
+next_step_channels = 👉 Next: add a channel and enable parsing (✅ in the list)
+next_step_ready_start = 👉 All set — tap «Start»
+next_step_tracking_on = 📬 Tracking is running — matches arrive in this chat
 
-    💡 <b>Tip:</b> to get the latest features and updates, it is recommended to restart the bot with the /start command
+tracking_status_running = ▶ running
+tracking_status_stopped = ⏹ stopped
+account_not_connected = not connected
+account_connected_unknown = connected
+my_parsing_button = 📡 My parsing
+cabinet_account_button = 👤 Account
+accounts_menu_template =
+    👤 <b>Accounts</b>
+
+    Active: <code>{ $active_label }</code>
+    Total: <b>{ $count }</b>
+
+    ● — active · ○ — tap to select · ✕ — delete
+accounts_connect_button = ➕ Connect new
+accounts_check_button = ✅ Check active
+accounts_set_active_ok = Active: { $phone }
+accounts_deleted_ok = Account deleted
+accounts_not_found = Account not found
+accounts_check_progress = Checking…
+accounts_check_ok = ✅ <b>{ $phone }</b> — session is valid
+accounts_check_fail = ❌ <b>{ $phone }</b> — session is invalid. Upload a new .session or pick another account.
+cabinet_message_template =
+    <b>My parsing</b>
+
+    { $check_account } Account: <code>{ $account_label }</code>
+    { $check_keywords } Keywords: <b>{ $keywords_count }</b>
+    { $check_channels } Channels: <b>{ $channels_enabled }</b> on / <b>{ $channels_total }</b> total
+    🎯 Match mode: <b>{ $match_mode }</b>
+
+    { $hint }
+cabinet_hint_ready = ✅ Ready — you can start tracking from the main screen.
+cabinet_hint_not_ready = ⚠️ To start tracking you need an account, at least one keyword and one enabled channel.
+
+wizard_message_template =
+    🚀 <b>Setup in 3 steps</b>
+
+    { $check_account } 1. Account: <code>{ $account_label }</code>
+    { $check_keywords } 2. Keywords: <b>{ $keywords_count }</b>
+    { $check_channels } 3. Channels: <b>{ $channels_enabled }</b> on / <b>{ $channels_total }</b> total
+
+    { $step_hint }
+wizard_hint_account = Now step 1: connect a Telegram account (.session).
+wizard_hint_keywords = Now step 2: add at least one keyword.
+wizard_hint_channels = Now step 3: add a channel and enable parsing ✅.
+wizard_hint_ready = ✅ All three steps done — tap «Start».
+wizard_cta_account = 👤 Connect account
+wizard_cta_keywords = 🔑 Add keywords
+wizard_cta_channels = 📢 Add channels
+wizard_continue_button = 🚀 Continue setup
+wizard_skip_button = To menu
 
 lang_selected =
     ✅ Great! The interface will now be displayed in your selected language.
 settings_message =
-    ⚙️ In this menu you can:
-    • 🔗 Connect a Telegram account
-    • 🌐 Change the interface language
-    • 📢 Add groups and channels to track
-    • 🧩 Configure keywords and filters
+    ⚙️ <b>Settings</b>
 
-    📬 Keyword matches are sent directly here, in this bot chat.
-
-    Choose an option below 👇
+    Alert filters, language and Stars live here.
+    Account, keywords and channels: «My parsing» on the main screen.
 connect_account =
     📱 To connect your Telegram account, send a session file in the format:
     `+79599999999.session`
@@ -45,10 +122,20 @@ launching_tracking =
 
     Keyword matches will be sent to this chat.
 tracking_launch_error =
-    ⚠️ The list of channels is empty.
+    ⚠️ No enabled channels to parse.
 
-    Please add at least one group or channel to track 🔍
-    via the settings menu ⚙️
+    Add channels and enable at least one in <b>My parsing → Channels</b>.
+tracking_not_ready =
+    ⚠️ Not ready to start yet. Missing:
+
+    { $gaps }
+
+    Open <b>My parsing</b> and complete the checklist.
+setup_before_start_button = ⚠️ Set up first
+ready_gap_account = connect a Telegram account
+ready_gap_keywords = add at least one keyword
+ready_gap_channels_none = add at least one channel
+ready_gap_channels_disabled = enable parsing for at least one channel (✅ in the list)
 update_list =
     📥 Send a .txt file or a text message with groups and channels to track:
 
@@ -69,7 +156,212 @@ account_missing =
 account_missing_2 =
     ⚠️ The session file for your Telegram account is invalid — you need to log in again. Send a valid session file.
 enter_keyword =
-    🔍 Enter a keyword / phrase to track
+    🔍 Add keywords:
+
+    • as text — one per line or comma-separated
+    • as a <code>.txt</code> file — one phrase per line
+
+    After submit they appear under My parsing → Keywords.
+keywords_menu_message =
+    🔑 <b>Keywords</b>
+
+    Saved now: <b>{ $count }</b>
+    Match mode: <b>{ $match_mode }</b>
+
+    Add via text or .txt, browse the list, delete items, or download a file.
+keywords_menu_button = 🔑 Keywords
+keywords_add_button = ➕ Add
+keywords_view_list_button = 📋 View list
+keywords_export_txt_button = 📄 .txt
+keywords_export_xlsx_button = 📊 Excel
+keywords_list_title =
+    🔑 Keywords: <b>{ $count }</b> · page { $page }
+    Tap ✕ to delete:
+keyword_deleted = Deleted: { $keyword }
+keyword_delete_missing = Keyword already deleted
+match_mode_button = 🎯 Match mode
+match_mode_strict_button = Strict (exact phrase only)
+match_mode_smart_button = Smart (recommended)
+match_mode_loose_button = Loose (more matches)
+match_mode_strict_name = strict
+match_mode_smart_name = smart
+match_mode_loose_name = loose
+match_mode_message =
+    🎯 <b>Keyword match mode</b>
+
+    Current: <b>{ $current }</b>
+
+    • <b>Strict</b> — exact phrase only
+    • <b>Smart</b> — stems/typos; all phrase words required
+    • <b>Loose</b> — more hits (legacy soft rules)
+match_mode_saved = Mode: { $mode }
+match_check_button = 🧪 Test a message
+match_check_no_keywords = Add keywords first
+match_check_prompt =
+    🧪 <b>Message check</b>
+
+    Keywords: <b>{ $count }</b> · mode: <b>{ $mode }</b>
+
+    Send a sample message text — I’ll show which keywords match and why.
+    Stop words are checked too.
+match_check_empty = Empty text — send a message
+match_check_need_text = Please send plain text (not a file/photo)
+match_check_none =
+    ❌ <b>No matches</b>
+
+    Mode: { $mode } · keywords checked: { $checked }
+
+    <b>Text:</b>
+    <i>{ $preview }</i>
+match_check_hits =
+    ✅ <b>Matched: { $hit_count }</b> of { $checked }
+
+    Mode: { $mode }
+
+    { $rows }
+    { $more }
+
+    <b>Text:</b>
+    <i>{ $preview }</i>
+match_check_row = { $n }. <code>{ $keyword }</code>
+    → { $why }
+match_check_more = …and { $count } more
+match_check_stopword =
+    🚫 Stop word “{ $stopword }” — in production neither alert nor lead would be created.
+match_check_again_hint = You can send another text or press Back.
+channels_menu_message =
+    📢 <b>Channels to parse</b>
+
+    Enabled: <b>{ $enabled }</b> · total in list: <b>{ $total }</b>
+
+    Add via text or .txt, toggle in the list.
+    «Check subscriptions» — whether the active account is in these channels.
+channels_menu_button = 📢 Channels
+channels_add_button = ➕ Add
+channels_view_list_button = 📋 View list
+channels_check_subs_button = 🔎 Check subscriptions
+channels_join_missing_button = ➕ Join missing
+channels_check_no_account = Connect an account first
+channels_check_no_enabled = No enabled channels
+channels_check_progress = Checking…
+channels_check_progress_msg =
+    🔎 Checking active account membership for <b>{ $count }</b> channel(s)…
+channels_check_connect_fail =
+    ❌ Could not connect the active account. Check the .session.
+channels_check_error =
+    ❌ Membership check failed. Try again later.
+channels_check_report =
+    🔎 <b>Account membership</b> <code>{ $phone }</code>
+
+    ✅ Joined: <b>{ $ok_count }</b>
+    ⚠️ Not joined: <b>{ $missing_count }</b>
+    ❌ Check errors: <b>{ $error_count }</b>
+
+    <b>Not joined:</b>
+    { $missing_list }
+
+    <b>Errors:</b>
+    { $error_list }
+
+    Without membership, messages from that channel may not arrive. Join now or start tracking — the bot will try to join in the background.
+
+    <i>✅/⏸ — parsing on/off. ⚠️ not joined · 🕐 pending approval · 🔒 private · ❌ error.</i>
+channels_join_nothing = Nothing to join — run a check first
+channels_join_progress =
+    ➕ Joining <b>{ $count }</b> channel(s)… This may take a while.
+channels_join_progress_live =
+    ➕ <b>Joining channels</b> · { $done }/{ $total }
+
+    Current: <code>{ $channel }</code>
+    ✅ { $joined } · already { $already } · ❌ { $errors }
+
+    { $status }
+channels_join_status_pause =
+    ⏳ Pause <b>{ $delay }</b> sec. before the next one…
+channels_join_status_working =
+    🔄 Joining…
+channels_join_cancel_button = ⏹ Cancel
+channels_join_cancel_confirm =
+    ⏹ <b>Cancel joining?</b>
+
+    Already processed channels will stay joined. You can resume the rest later.
+channels_join_cancel_yes = ✅ Yes, cancel
+channels_join_cancelling_msg = ⏹ Cancelling join…
+channels_join_already_running = Join already in progress — wait or cancel it first
+channels_join_background_hint = Join continues in the background — I'll send the summary separately
+channels_join_stopped =
+    ⏹ <b>Join cancelled</b>
+
+    Newly joined: <b>{ $joined }</b>
+    Already member: <b>{ $already }</b>
+    Errors: <b>{ $errors }</b>
+    Not processed: <b>{ $remaining }</b>
+channels_join_done =
+    ✅ Done.
+
+    Newly joined: <b>{ $joined }</b>
+    Already member: <b>{ $already }</b>
+    Errors: <b>{ $errors }</b>
+    Deferred by limit: <b>{ $skipped }</b>
+channels_export_txt_button = 📄 .txt
+channels_export_xlsx_button = 📊 Excel
+channels_clear_button = 🗑️ Clear all
+channels_list_title =
+    📢 Channels: <b>{ $enabled }</b> on / <b>{ $total }</b> · page { $page }
+    ✅/⏸ parse · ⚠️🕐🔒❌ membership · ✕ delete
+channel_deleted = Deleted: { $channel }
+channel_missing = Channel already deleted
+channel_membership_ok = joined
+channel_membership_missing = not joined
+channel_membership_pending = pending approval
+channel_membership_private = private
+channel_membership_error = join error
+membership_reason_not_member = account not a member
+membership_reason_pending_approval = admin approval required (request sent or needed)
+membership_reason_private = private or inaccessible chat
+membership_reason_check_failed = check failed
+membership_reason_invalid_ref = invalid link
+membership_reason_invite_expired = invite link expired
+membership_reason_unknown = could not join
+channel_enabled = Enabled: { $channel }
+channel_disabled = Disabled: { $channel }
+channel_status_on = on
+channel_status_off = off
+excel_header_parse_status = Parsing
+leads_menu_button = 📋 Matches
+leads_view_list_button = 📋 View list
+leads_export_xlsx_button = 📊 Excel
+leads_menu_message =
+    📋 <b>Matches</b>
+
+    Saved: <b>{ $count }</b>
+
+    History of keyword hits — browse the list or export Excel.
+leads_list_title =
+    📋 Matches: <b>{ $count }</b> · page { $page }
+    Tap a card to open:
+leads_empty = 📭 No saved matches yet. They appear when keywords hit.
+leads_missing = Record not found
+leads_export_caption = 📋 Matches export. Total: { $count }
+leads_card =
+    📋 <b>Match</b>
+
+    <b>Keyword:</b> <code>{ $keyword }</code>
+    <b>Author:</b> { $author }
+    <b>Chat:</b> { $chat }
+    <b>Time:</b> { $when }
+    <b>Link:</b> { $link }
+
+    <b>Text:</b>
+    { $message_text }
+excel_header_lead_time = Time
+excel_header_author_name = Author
+excel_header_author_username = @username
+excel_header_author_id = Author ID
+excel_header_chat_title = Chat
+excel_header_link = Link
+excel_header_message_text = Text
+
 ai_search_welcome =
     🤖 <b>Welcome to the AI Search menu!</b>
 
@@ -90,6 +382,8 @@ admin_panel_message =
     👋 <b>Welcome to Admin Panel!</b>
 
     Here's what you can do:
+
+    📡 <b>Tracking</b> — who is parsing now, keywords/channels, force stop.
 
     📁 <b>Get Log File</b> — view the error and event log of the bot for the recent period. Useful for diagnostics.
 
@@ -117,11 +411,33 @@ instruction_caption =
 
     We recommend reviewing it for effective use of all bot features.
 
+instruction_howto_extra =
+    💡 Tip: in Keywords there is <b>«Test a message»</b> — try a sample text before starting.
+
+    Tap the button below to ask a question about the bot.
+instruction_ask_button = ❓ Ask a question
+instruction_ask_prompt =
+    🤖 Type your question about using the bot — I’ll answer using the docs.
 instruction_file_not_found =
     ⚠️ Instruction file not found on server.
 
 instruction_send_error =
-    ❌ An error occurred while sending the file.
+    ❌ Could not answer. Try again later or contact support.
+instruction_menu_error =
+    ❌ Could not open instructions. Try /start.
+instruction_ai_no_key =
+    ⚠️ AI answers are not configured: <code>GROQ_API_KEY</code> is missing in .env.
+
+    Free key: https://console.groq.com/keys
+    Add it to .env and restart the bot.
+instruction_ai_auth_error =
+    ⚠️ Groq key is invalid or revoked. Check <code>GROQ_API_KEY</code> in .env.
+instruction_ai_connection_error =
+    ⚠️ Could not reach Groq (network/DNS/proxy). Check internet and PROXY_* in .env.
+instruction_ai_empty =
+    ⚠️ Empty AI reply. Try rephrasing the question.
+instruction_ai_error =
+    ❌ AI error. Please try again later.
 
 # === Database Export ===
 database_empty =
@@ -331,11 +647,21 @@ no_channels_to_track =
     📭 You have no added channels to track.
 
 too_many_channels =
-    ⚠️ Found { $total } channels. Subscription will only be done for the first { $limit }.
+    ⚠️ Found { $total } channels. This pass will only join the first { $limit } (anti-ban limit). The rest — on the next run.
 
 channel_subscribed =
     ✅ Subscribed to { $channel }
-    ⏳ Next attempt in { $delay } sec.
+    ⏳ Pause { $delay } sec. before the next one…
+
+join_daily_limit =
+    ⏸ Daily join limit reached ({ $limit }/day). Continue tomorrow or raise JOIN_DAILY_LIMIT.
+
+join_batch_summary =
+    📊 Joins this pass:
+    • new: <b>{ $joined }</b>
+    • already: <b>{ $already }</b>
+    • errors: <b>{ $errors }</b>
+    • deferred by limit: <b>{ $skipped }</b>
 
 target_group_join_error =
     ❌ Account could not join the target group, check the connected group
@@ -356,12 +682,55 @@ keyword_match_alert =
 
     <b>Source:</b> { $chat_title }
     <b>Chat:</b> { $chat_username }
+    <b>Author:</b> { $author }
+    <b>Time:</b> { $message_time }
     <b>Link:</b> { $message_link }
 
     <b>Keyword:</b> <code>{ $matched_keyword }</code>
+    <b>Why:</b> { $match_why }
 
     <b>Message text:</b>
     { $message_text }
+
+keyword_match_alert_compact =
+    📥 <b>{ $matched_keyword }</b> · { $chat_title }
+    { $author } · { $message_time }
+    { $message_link }
+    <i>{ $match_why }</i>
+
+    { $message_text }
+
+keyword_match_alert_minimal =
+    <b>{ $matched_keyword }</b>
+    <i>{ $match_why }</i>
+    { $message_link }
+
+    { $message_text }
+
+alert_why_exact = exact phrase · mode “{ $mode }”
+alert_why_tokens = words: { $tokens } · mode “{ $mode }”
+alert_why_loose = partial: { $tokens } · mode “{ $mode }”
+
+alert_time_value = { $datetime } ({ $tz })
+alert_chat_id_only = id { $chat_id }
+alert_chat_id_typed = id { $chat_id } ({ $chat_type })
+alert_chat_type_channel = channel
+alert_chat_type_supergroup = supergroup
+alert_chat_type_group = group
+alert_chat_type_user = private chat
+alert_open_button = 🔗 Open
+alert_mute_24h_button = 🔕 Mute 24h
+alert_mute_ok = Channel id { $chat_id } muted for { $hours }h
+alert_mute_invalid = Could not mute channel
+
+alert_author_id = · id { $id }
+alert_author_id_only = id { $id }
+alert_author_unknown = — (channel / anonymous)
+alert_author_signed = signed: { $name }
+alert_author_channel = channel
+alert_author_forward = forwarded from { $name }
+alert_author_forward_entity = forwarded · { $author }
+alert_author_forward_id = forwarded · id { $id }
 
 message_link_unavailable = Link unavailable
 
@@ -377,8 +746,28 @@ tracking_stop_requested =
 tracking_restored =
     🔄 Tracking restored after service restart.
 
+tracking_reconnected =
+    🔄 Telegram connection restored — listening again.
+
+tracking_reconnect_failed =
+    ❌ Could not restore Telegram connection. Tracking stopped.
+    Start again when the network is available.
+
+tracking_failover_ok =
+    🔄 Switched account: { $from_phone } → { $to_phone }. Still listening.
+
+tracking_failover_failed =
+    ❌ Could not reconnect or switch to a backup account.
+    Add a second .session in «My parsing» → Account, or start again later.
+
+tracking_not_subscribed_warn =
+    ⚠️ Account is not in <b>{ $count }</b> channel(s) yet: { $preview }
+
+    Listening to available ones now; will try to join in the background. Manual check: Channels → «Check subscriptions».
+
 search_client_error =
-    ❌ Error connecting to account. Please try again later.
+    ❌ Could not connect an account for tracking.
+    Check the .session or add a backup account in «My parsing» → Account.
 
 search_no_available_accounts =
     ⚠️ No connected account for search.
@@ -568,6 +957,31 @@ get_database_button = 📥 Get Database
 instruction_button = 📖 Instructions
 settings_button = ⚙️ Settings
 admin_panel_button = 🛡️ Admin Panel
+admin_tracking_button = 📡 Tracking
+admin_tracking_message =
+    📡 <b>Active tracking</b>: { $count }
+
+    Matches last hour: <b>{ $matches }</b> · FloodWaits last hour: <b>{ $floods }</b>
+
+    { $rows }
+
+    ▶ — running in this process · ○ — Redis mark only
+admin_tracking_empty =
+    📡 <b>Active tracking</b>: 0
+
+    Matches last hour: <b>{ $matches }</b> · FloodWaits last hour: <b>{ $floods }</b>
+
+    Nobody is parsing right now.
+admin_tracking_row =
+    • <b>{ $user }</b>
+    keywords: { $keywords } · channels: { $channels_enabled }/{ $channels_total }
+    { $local } local · client { $client } · uptime { $uptime }
+admin_tracking_stop_button = 🛑 Stop { $user_id }
+admin_tracking_refresh_button = 🔄 Refresh
+admin_tracking_refreshed = Refreshed
+admin_tracking_stopped = Stopped { $user_id }
+admin_tracking_stop_invalid = Invalid user_id
+admin_tracking_stop_error = Error: { $error }
 get_log_file_button = 📄 Get Log File
 update_database_button = 🔄 Update Database
 export_questions_button = Export Questions
@@ -615,6 +1029,184 @@ keywords_list_button = 🔍 Keywords List
 tracking_links_button = 🌐 Tracking Links
 connect_group_for_messages_button = 📤 Group forwarding (soon)
 change_language_button = 🌐 Change Language
+quiet_hours_button = 🌙 Quiet hours
+quiet_hours_message =
+    🌙 <b>Quiet hours</b>
+
+    Status: <b>{ $status }</b>
+    Window: <code>{ $window }</code>
+
+    During this time matches are saved to Leads, but chat notifications are paused.
+quiet_hours_status_on = on
+quiet_hours_status_off = off
+quiet_hours_enable_button = ✅ Enable
+quiet_hours_disable_button = ⏹ Disable
+quiet_hours_preset_2308 = 23:00–08:00
+quiet_hours_preset_0007 = 00:00–07:00
+quiet_hours_preset_2209 = 22:00–09:00
+quiet_hours_toggled_on = Quiet hours enabled
+quiet_hours_toggled_off = Quiet hours disabled
+quiet_hours_preset_saved = Window: { $window }
+digest_button = 📦 Digest
+digest_settings_message =
+    📦 <b>Match digest</b>
+
+    Status: <b>{ $status }</b>
+    Interval: <b>{ $interval }</b> min
+
+    Instead of every alert, the bot batches matches and sends one summary.
+    Leads are still saved immediately.
+digest_status_on = on
+digest_status_off = off
+digest_enable_button = ✅ Enable
+digest_disable_button = ⏹ Disable
+digest_interval_15 = 15 min
+digest_interval_30 = 30 min
+digest_interval_60 = 60 min
+digest_flush_now_button = 📤 Send now
+digest_toggled_on = Digest enabled
+digest_toggled_off = Digest disabled
+digest_flushed_on_disable = Digest off, sent: { $count }
+digest_interval_saved = Interval: { $interval } min
+digest_flush_ok = Matches sent: { $count }
+digest_flush_empty = Buffer is empty
+digest_message =
+    📦 <b>Match digest</b> ({ $count })
+
+    { $items }
+    { $more }
+digest_and_more =
+    …and { $count } more
+chat_filter_button = 📢 Chat types
+chat_filter_message =
+    📢 <b>Filter by chat type</b>
+
+    Current: <b>{ $current }</b>
+
+    • All — channels and groups/discussions
+    • Channels only — channel posts (no discussion comments)
+    • Groups only — supergroups and discussions
+chat_filter_all_name = all
+chat_filter_channels_name = channels only
+chat_filter_groups_name = groups only
+chat_filter_all_button = All chats
+chat_filter_channels_button = Channels only
+chat_filter_groups_button = Groups only
+chat_filter_saved = Filter: { $mode }
+alert_template_button = 📝 Alert template
+alert_template_message =
+    📝 <b>Alert template</b>
+
+    Current: <b>{ $current }</b>
+
+    • Full — all fields (source, chat, author, time, link, keyword, why, text)
+    • Compact — keyword, source, author, time, link, why and text
+    • Minimal — keyword, why, link and text
+alert_template_full_name = full
+alert_template_compact_name = compact
+alert_template_minimal_name = minimal
+alert_template_full_button = Full
+alert_template_compact_button = Compact
+alert_template_minimal_button = Minimal
+alert_template_saved = Template: { $mode }
+
+alert_destination_button = 📬 Alert destination
+alert_destination_message =
+    📬 <b>Where to send alerts</b>
+
+    DM: <b>{ $dm_status }</b>
+    Group: <b>{ $group_status }</b>
+
+    { $group_info }
+alert_destination_dm_button = Direct messages
+alert_destination_group_button = Group
+alert_destination_on = on
+alert_destination_off = off
+alert_destination_group_unbound = No group bound — enable Group and bind a chat.
+alert_destination_group_bound = Bound: chat <code>{ $chat_id }</code>
+alert_destination_group_bound_topic = Bound: chat <code>{ $chat_id }</code>, topic <code>{ $thread_id }</code>
+alert_destination_need_one_channel = At least one delivery channel is required (DM or group).
+alert_destination_bind_button = 🔗 Bind group
+alert_destination_rebind_button = 🔄 Change group/topic
+alert_destination_unbind_button = ✂️ Unbind group
+alert_destination_unbound = Group unbound
+alert_destination_bind_instructions =
+    <b>Bind a group for alerts</b>
+
+    1. Add the bot to a supergroup (for a topic — add it to that topic).
+    2. In the group or <b>in the target topic</b>, run:
+
+    <code>{ $command }</code>
+
+    Token is valid for { $ttl_min } min. Only a group admin can run the command.
+alert_destination_bind_ready_button = 🔄 New token
+alert_destination_bind_token_required =
+    A token from bot settings is required.
+
+    First: Settings → Alert destination → Bind group.
+    Then in the group/topic: <code>/bind_alerts TOKEN</code>
+alert_destination_bind_bad_token = Invalid or expired token. Get a new one in bot settings.
+alert_destination_bind_not_admin = Only a chat administrator or creator can bind the group.
+alert_destination_bind_chat_taken = This chat/topic is already bound to another bot account.
+alert_destination_bind_success = ✅ Group bound: { $group_info }
+alert_destination_bind_success_short = ✅ Bound: { $group_info }
+alert_destination_test_message = ✅ <b>Delivery test</b>\n\nAlerts to this group are configured.
+alert_destination_group_not_bound = Group is enabled but no chat is bound. Open settings and bind a group.
+alert_group_delivery_failed =
+    ⚠️ Could not deliver alert to the group (DM was sent).
+    { $error }
+alert_group_delivery_failed_only =
+    ⚠️ Could not deliver alert to the group. Check that the bot is in the chat and binding is valid.
+    { $error }
+
+leads_group_help =
+    <b>Leads export in group</b>
+
+    <code>/leads</code> — all leads
+    <code>/leads 2026-07-01</code> — single day
+    <code>/leads 2026-07-01 2026-07-17</code> — date range
+
+    Dates use bot timezone (TIMEZONE). Owner only.
+leads_group_bad_dates = Invalid date format. Example: <code>/leads 2026-07-01</code> or <code>/leads 2026-07-01 2026-07-17</code>
+leads_group_not_bound =
+    Alert group is not bound.
+
+    In DM: Settings → Alert destination → Bind group → <code>/bind_alerts TOKEN</code> in this topic.
+leads_group_disabled = Group delivery is off. Enable “Group” in bot settings.
+leads_group_wrong_chat =
+    This group is not bound to your account. Bound chat: <code>{ $chat_id }</code>
+leads_group_wrong_topic =
+    Command works only in the bound topic (thread <code>{ $thread_id }</code>).
+    Run <code>/bind_alerts TOKEN</code> in the target topic.
+group_chat_allowed_command_failed =
+    Command failed. Check group binding (/bind_alerts TOKEN) and that the bot is in the chat.
+leads_group_export_day_caption = Leads for { $date }: { $count }
+leads_group_export_range_caption = Leads { $date_from } — { $date_to }: { $count }
+
+stopwords_menu_button = 🚫 Stop words
+stopwords_menu_message =
+    🚫 <b>Stop words</b>
+
+    Total: <b>{ $count }</b>
+
+    If a message contains a stop word, the alert is skipped (even if a keyword matched).
+stopwords_add_button = ➕ Add
+stopwords_view_list_button = 📋 List
+stopwords_add_prompt =
+    📥 Send stop words as text or a .txt file (one per line or comma-separated).
+
+    Example:
+    spam
+    ads
+    buy subscription
+stopwords_empty_input = Empty input — add at least one word.
+stopwords_added_count = Stop words added: { $count }
+stopwords_already_added = Already existed ({ $count })
+stopwords_add_errors = Errors while adding
+stopwords_list_empty = Stop-word list is empty.
+stopwords_list_title = Stop words: { $count } · page { $page }
+stopwords_deleted = Deleted: { $word }
+stopwords_missing = Stop word not found
 connect_free_account_button = 🔐 Connect Free Account
 
 # get_dada.py

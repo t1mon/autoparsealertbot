@@ -40,6 +40,41 @@ from ai.ai import get_groq_response, search_groups_in_telegram
 # Initialize FastAPI
 app = FastAPI(title="AutoParseAlertBot Web API", version="0.0.9")
 
+
+@app.get("/health")
+async def health():
+    """Liveness + краткий статус Redis и tracking."""
+    from core.metrics import get_metric_count
+    from core.redis_client import is_redis_connected, ping_redis
+
+    redis_ok = await ping_redis()
+    active_ids = await tracking_store.list_active()
+    matches_hour = await get_metric_count("matches")
+    flood_hour = await get_metric_count("floodwaits")
+    payload = {
+        "ok": True,
+        "redis": redis_ok,
+        "redis_configured": is_redis_connected() or redis_ok,
+        "tracking_count": len(active_ids),
+        "tracking_local": len(stop_flags),
+        "matches_last_hour": matches_hour,
+        "floodwaits_last_hour": flood_hour,
+    }
+    # сервис жив даже без Redis; 503 только если критично — оставляем 200
+    return payload
+
+
+@app.get("/health/redis")
+async def health_redis():
+    """Проверка Redis (для docker/k8s probes)."""
+    from core.redis_client import ping_redis
+    from fastapi.responses import JSONResponse
+
+    ok = await ping_redis()
+    body = {"ok": ok, "redis": ok}
+    return JSONResponse(content=body, status_code=200 if ok else 503)
+
+
 # Add CORS Middleware
 app.add_middleware(
     CORSMiddleware,
@@ -114,6 +149,14 @@ def get_current_tg_user(authorization: Optional[str] = Header(None)) -> dict:
         raise HTTPException(status_code=401, detail="Authentication failed")
 
 
+def get_allowed_tg_user(user_data: dict = Depends(get_current_tg_user)) -> dict:
+    from core.access import is_user_allowed
+
+    if not is_user_allowed(int(user_data["id"])):
+        raise HTTPException(status_code=403, detail="access_denied")
+    return user_data
+
+
 # Global admin status dictionary for showing progress to admin in Web UI
 admin_task_status = {
     "action": "none",  # "categorize", "lang_detect", "check_accounts", "actualize", "none"
@@ -137,7 +180,7 @@ init_web_directories()
 # ==================== PUBLIC API ENDPOINTS ====================
 
 @app.get("/api/status")
-async def get_status(user_data: dict = Depends(get_current_tg_user)):
+async def get_status(user_data: dict = Depends(get_allowed_tg_user)):
     user_id = user_data["id"]
 
     # Get user
@@ -182,7 +225,7 @@ async def get_status(user_data: dict = Depends(get_current_tg_user)):
 
 
 @app.post("/api/settings/language")
-async def update_language(lang: str, user_data: dict = Depends(get_current_tg_user)):
+async def update_language(lang: str, user_data: dict = Depends(get_allowed_tg_user)):
     if lang not in ["ru", "en"]:
         raise HTTPException(status_code=400, detail="Invalid language code")
 
@@ -197,7 +240,7 @@ async def update_language(lang: str, user_data: dict = Depends(get_current_tg_us
 
 
 @app.post("/api/tracking/start")
-async def start_user_tracking(background_tasks: BackgroundTasks, user_data: dict = Depends(get_current_tg_user)):
+async def start_user_tracking(background_tasks: BackgroundTasks, user_data: dict = Depends(get_allowed_tg_user)):
     user_id = user_data["id"]
     user = User.get_or_none(User.user_id == user_id)
     if not user:
@@ -205,6 +248,18 @@ async def start_user_tracking(background_tasks: BackgroundTasks, user_data: dict
 
     if await is_tracking_marked(user_id):
         return {"status": "already_running"}
+
+    from handlers.user.menu_helpers import format_readiness_gaps, is_parsing_ready
+
+    if not is_parsing_ready(user_id):
+        lang = user.language if user.language != "unset" else "ru"
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "status": "not_ready",
+                "message": t("tracking_not_ready", lang=lang, gaps=format_readiness_gaps(user_id, lang)),
+            },
+        )
 
     mock_msg = MockMessage(user_id=user_id, username=user.username)
     background_tasks.add_task(_start_tracking_task, user_id, user, mock_msg)
@@ -222,6 +277,7 @@ async def _start_tracking_task(user_id: int, user, mock_msg: MockMessage):
         reply_markup=resolve_main_keyboard(
             user.language,
             tracking_active=True,
+            user_id=user_id,
             is_admin=user_id in ADMIN_USER_IDS,
         ),
     )
@@ -229,7 +285,7 @@ async def _start_tracking_task(user_id: int, user, mock_msg: MockMessage):
 
 
 @app.post("/api/tracking/stop")
-async def stop_user_tracking(user_data: dict = Depends(get_current_tg_user)):
+async def stop_user_tracking(user_data: dict = Depends(get_allowed_tg_user)):
     user_id = user_data["id"]
     user = User.get_or_none(User.user_id == user_id)
     if not user:
@@ -246,7 +302,7 @@ async def stop_user_tracking(user_data: dict = Depends(get_current_tg_user)):
 
 # Keywords Management
 @app.get("/api/keywords")
-async def list_keywords(user_data: dict = Depends(get_current_tg_user)):
+async def list_keywords(user_data: dict = Depends(get_allowed_tg_user)):
     user_id = user_data["id"]
     KeywordsModel = create_keywords_model(user_id)
 
@@ -258,7 +314,7 @@ async def list_keywords(user_data: dict = Depends(get_current_tg_user)):
 
 
 @app.post("/api/keywords")
-async def add_keyword(keyword: str = Form(...), user_data: dict = Depends(get_current_tg_user)):
+async def add_keyword(keyword: str = Form(...), user_data: dict = Depends(get_allowed_tg_user)):
     user_id = user_data["id"]
     keyword = keyword.strip()
     if not keyword:
@@ -278,7 +334,7 @@ async def add_keyword(keyword: str = Form(...), user_data: dict = Depends(get_cu
 
 
 @app.delete("/api/keywords/{kw_id}")
-async def delete_keyword(kw_id: int, user_data: dict = Depends(get_current_tg_user)):
+async def delete_keyword(kw_id: int, user_data: dict = Depends(get_allowed_tg_user)):
     user_id = user_data["id"]
     KeywordsModel = create_keywords_model(user_id)
 
@@ -293,15 +349,15 @@ async def delete_keyword(kw_id: int, user_data: dict = Depends(get_current_tg_us
 
 # Tracked Channels Management
 @app.get("/api/channels")
-async def list_channels(user_data: dict = Depends(get_current_tg_user)):
+async def list_channels(user_data: dict = Depends(get_allowed_tg_user)):
     user_id = user_data["id"]
     records = list(Groups.select().where(Groups.user_id == user_id).order_by(Groups.date_added.desc()))
-    return [{"id": ch.id, "username": ch.username, "date_added": ch.date_added.strftime("%Y-%m-%d %H:%M:%S")} for ch in
+    return [{"id": ch.id, "username": ch.username, "parse_enabled": bool(ch.parse_enabled), "date_added": ch.date_added.strftime("%Y-%m-%d %H:%M:%S")} for ch in
             records]
 
 
 @app.post("/api/channels")
-async def add_channel(username: str = Form(...), user_data: dict = Depends(get_current_tg_user)):
+async def add_channel(username: str = Form(...), user_data: dict = Depends(get_allowed_tg_user)):
     user_id = user_data["id"]
     username = normalize_telegram_username(username)
     if not username:
@@ -317,7 +373,7 @@ async def add_channel(username: str = Form(...), user_data: dict = Depends(get_c
 
 
 @app.delete("/api/channels/{ch_id}")
-async def delete_channel(ch_id: int, user_data: dict = Depends(get_current_tg_user)):
+async def delete_channel(ch_id: int, user_data: dict = Depends(get_allowed_tg_user)):
     user_id = user_data["id"]
     deleted = Groups.delete().where(Groups.user_id == user_id, Groups.id == ch_id).execute()
     if deleted:
@@ -326,7 +382,7 @@ async def delete_channel(ch_id: int, user_data: dict = Depends(get_current_tg_us
 
 
 @app.post("/api/channels/upload")
-async def upload_channels_file(file: UploadFile = File(...), user_data: dict = Depends(get_current_tg_user)):
+async def upload_channels_file(file: UploadFile = File(...), user_data: dict = Depends(get_allowed_tg_user)):
     user_id = user_data["id"]
     if not file.filename.endswith(".txt"):
         raise HTTPException(status_code=400, detail="Only .txt files are supported")
@@ -363,21 +419,24 @@ async def upload_channels_file(file: UploadFile = File(...), user_data: dict = D
 
 # Telegram Accounts Management
 @app.get("/api/accounts")
-async def list_accounts(user_data: dict = Depends(get_current_tg_user)):
+async def list_accounts(user_data: dict = Depends(get_allowed_tg_user)):
     user_id = user_data["id"]
     accounts = get_user_accounts(user_id)
     # Return serializable dict (excluding the full session string)
     return [
         {
+            "id": acc["id"],
             "phone_number": acc["phone_number"],
+            "is_active": bool(acc.get("is_active")),
             "created_at": acc["created_at"].strftime("%Y-%m-%d %H:%M:%S")
+            if acc.get("created_at") else None,
         }
         for acc in accounts
     ]
 
 
 @app.post("/api/accounts/upload")
-async def upload_account_session(file: UploadFile = File(...), user_data: dict = Depends(get_current_tg_user)):
+async def upload_account_session(file: UploadFile = File(...), user_data: dict = Depends(get_allowed_tg_user)):
     user_id = user_data["id"]
     user = User.get_or_none(User.user_id == user_id)
     if not user:
@@ -436,42 +495,30 @@ async def upload_account_session(file: UploadFile = File(...), user_data: dict =
 
 
 @app.delete("/api/accounts/{phone}")
-async def delete_account(phone: str, user_data: dict = Depends(get_current_tg_user)):
+async def delete_account(phone: str, user_data: dict = Depends(get_allowed_tg_user)):
     user_id = user_data["id"]
 
-    # Retrieve user account list to find the session string matching this phone
     accounts = get_user_accounts(user_id)
-    session_to_delete = None
-    for acc in accounts:
-        if acc["phone_number"] == phone:
-            session_to_delete = acc["session_string"]
-            break
-
-    if not session_to_delete:
+    target = next((acc for acc in accounts if acc["phone_number"] == phone), None)
+    if not target:
         raise HTTPException(status_code=404, detail="Account not found")
 
-    # Delete from user accounts table
-    deleted = UserAccountsTable.delete().where(
-        UserAccountsTable.user_id == user_id,
-        UserAccountsTable.phone_number == phone
-    ).execute()
+    from database.database import delete_user_account
 
-    if deleted:
-        # Also clean from global active clients if connected
-        if str(user_id) in active_clients:
-            client = active_clients.pop(str(user_id))
-            if client.is_connected():
-                await client.disconnect()
-            stop_flags.pop(str(user_id), None)
-            await tracking_store.unmark_active(user_id)
-        return {"status": "ok"}
+    if not delete_user_account(user_id, target["id"]):
+        raise HTTPException(status_code=500, detail="Failed to delete account")
 
-    raise HTTPException(status_code=500, detail="Failed to delete account")
-
+    if str(user_id) in active_clients:
+        client = active_clients.pop(str(user_id))
+        if client.is_connected():
+            await client.disconnect()
+        stop_flags.pop(str(user_id), None)
+        await tracking_store.unmark_active(user_id)
+    return {"status": "ok"}
 
 # Stars Top Up Invoice Link
 @app.post("/api/payment/stars-topup")
-async def create_topup_invoice(amount: int = Query(...), user_data: dict = Depends(get_current_tg_user)):
+async def create_topup_invoice(amount: int = Query(...), user_data: dict = Depends(get_allowed_tg_user)):
     user_id = user_data["id"]
     user = User.get_or_none(User.user_id == user_id)
     if not user:
@@ -498,7 +545,7 @@ async def create_topup_invoice(amount: int = Query(...), user_data: dict = Depen
 
 # AI Group Search Endpoint
 @app.post("/api/search/ai")
-async def trigger_ai_search(query: str = Form(...), user_data: dict = Depends(get_current_tg_user)):
+async def trigger_ai_search(query: str = Form(...), user_data: dict = Depends(get_allowed_tg_user)):
     user_id = user_data["id"]
     user = User.get_or_none(User.user_id == user_id)
     if not user:
@@ -549,7 +596,7 @@ async def trigger_ai_search(query: str = Form(...), user_data: dict = Depends(ge
 
 # Get Database / Export XLSX Endpoint
 @app.get("/api/export/check")
-async def check_export_status(user_data: dict = Depends(get_current_tg_user)):
+async def check_export_status(user_data: dict = Depends(get_allowed_tg_user)):
     user_id = user_data["id"]
     user = User.get_or_none(User.user_id == user_id)
     if not user:
@@ -569,7 +616,7 @@ async def check_export_status(user_data: dict = Depends(get_current_tg_user)):
 async def download_database(
         export_type: str = Form("all"),  # "all", "channels", "groups"
         category: Optional[str] = Form(None),  # e.g. "investments"
-        user_data: dict = Depends(get_current_tg_user)
+        user_data: dict = Depends(get_allowed_tg_user)
 ):
     user_id = user_data["id"]
     user = User.get_or_none(User.user_id == user_id)
@@ -628,7 +675,7 @@ def io_bytes_stream(data: bytes):
 
 # ==================== ADMIN PANEL API ENDPOINTS ====================
 
-def require_admin(user_data: dict = Depends(get_current_tg_user)):
+def require_admin(user_data: dict = Depends(get_allowed_tg_user)):
     user_id = user_data["id"]
     if user_id not in ADMIN_USER_IDS:
         raise HTTPException(status_code=403, detail="Access denied: Admin only")
@@ -637,6 +684,8 @@ def require_admin(user_data: dict = Depends(get_current_tg_user)):
 
 @app.get("/api/admin/status")
 async def get_admin_status(user_id: int = Depends(require_admin)):
+    from core.metrics import get_metric_count
+
     # Calculate groups without category
     uncategorized_count = TelegramGroup.select().where(
         (TelegramGroup.username.is_null(False)) &
@@ -645,10 +694,15 @@ async def get_admin_status(user_id: int = Depends(require_admin)):
 
     # Get total accounts
     total_accounts = Account.select().count()
+    active_ids = await tracking_store.list_active()
 
     return {
         "uncategorized_count": uncategorized_count,
         "total_accounts": total_accounts,
+        "tracking_count": len(active_ids),
+        "tracking_local": len(stop_flags),
+        "matches_last_hour": await get_metric_count("matches"),
+        "floodwaits_last_hour": await get_metric_count("floodwaits"),
         "task": admin_task_status
     }
 

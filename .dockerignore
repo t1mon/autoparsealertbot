@@ -6,5 +6,6 @@ __pycache__
 logs/*
 .env
 .cursor
-*.md
-doc/
+# README/roadmap не нужны в образе; база знаний для AI — нужна
+/*.md
+docs/

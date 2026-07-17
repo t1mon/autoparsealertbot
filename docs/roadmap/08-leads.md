@@ -60,25 +60,21 @@
 
 ### P0 — сохранение
 
-- [ ] Модель Peewee + создание таблицы
-- [ ] Запись матча в `process_message`
-- [ ] Дедуп по `unique_key`
-- [ ] Автор в той же записи (когда `get_sender` доступен)
+- [x] Модель Peewee + создание таблицы
+- [x] Запись матча в `process_message`
+- [x] Дедуп по `unique_key`
+- [x] Автор в той же записи (когда `get_sender` доступен)
 
 ### P1 — просмотр и выгрузка
 
-- [ ] Меню списка совпадений в боте
-- [ ] Выгрузка Excel/CSV (дата, автор, ключ, текст, ссылка, чат)
-- [ ] Единые поля с алертом ([07-alerts.md](07-alerts.md))
+- [x] Меню списка совпадений в боте
+- [x] Выгрузка Excel/CSV (дата, автор, ключ, текст, ссылка, чат)
+- [x] Единые поля с алертом ([07-alerts.md](07-alerts.md))
+- [x] Выгрузка за период (`get_leads_for_export`, общий helper `core/leads_export.py`)
+- [x] Команды в привязанной группе: `/leads`, `/leads YYYY-MM-DD`, `/leads from to`, `/leads_help` (только владелец)
 
 ### P2 — удобство
 
 - [ ] Фильтры, поиск по тексту/username
 - [ ] Очистка / retention (хранить N дней)
-- [ ] Дедуп алертов через БД/`unique_key` вместо только RAM `forwarded_messages`
-
-## Связанный код сейчас
-
-- Матч + алерт: `account_manager/parser.py` → `process_message`
-- Дедуп только в RAM: `forwarded_messages`
-- Выгрузки каналов: `TelegramGroup` — **не** эта база
+- [x] Дедуп алертов: Redis SET NX + TTL + `lead_exists` в БД

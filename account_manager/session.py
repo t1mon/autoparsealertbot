@@ -1,5 +1,3 @@
-import random
-
 import structlog
 
 logger = structlog.get_logger(__name__)
@@ -7,7 +5,7 @@ from telethon import TelegramClient
 from telethon.sessions import StringSession
 
 from core.config import ADMIN_USER_IDS, API_ID, API_HASH
-from database.database import get_user_accounts
+from database.database import get_active_account
 from keyboards.user.keyboards import resolve_main_keyboard
 from locales.locales import t
 
@@ -17,24 +15,21 @@ async def _main_kb(user, user_id):
     return resolve_main_keyboard(
         user.language,
         tracking_active=await is_tracking_marked(user_id),
+        user_id=int(user_id),
         is_admin=int(user_id) in ADMIN_USER_IDS,
     )
 
 
 async def find_session_file(user_id: int, user, message):
     """
-    Получает валидную StringSession из базы данных пользователя.
+    Получает валидную StringSession активного аккаунта пользователя.
 
-    :param user_id: (int) ID пользователя Telegram
-    :param user: (User) Модель пользователя из БД (для языка и уведомлений)
-    :param message: (aiogram.types.Message) Для отправки ответа
-    :return: dict с данными аккаунта {"session_string": str, "phone": str} или None
+    :return: dict {"session_string": str, "phone_number": str} или None
     """
     try:
-        # Получаем все аккаунты пользователя из его персональной таблицы
-        accounts = get_user_accounts(user_id)
+        account = get_active_account(user_id)
 
-        if not accounts:
+        if not account:
             logger.warning(f"⚠️ У пользователя {user_id} нет подключённых аккаунтов в БД")
             await message.answer(
                 t("no_accounts", lang=user.language),
@@ -42,24 +37,17 @@ async def find_session_file(user_id: int, user, message):
             )
             return None
 
-        logger.info(f"📦 Найдено {len(accounts)} аккаунтов в БД для пользователя {user_id}")
+        session_string = account["session_string"]
+        phone = account["phone_number"]
+        logger.info(f"📦 Активный аккаунт пользователя {user_id}: {phone}")
 
-        # Случайным образом выбираем один аккаунт (можно изменить логику выбора)
-        selected_account = random.choice(accounts)
-        session_string = selected_account["session_string"]
-        phone = selected_account["phone_number"]
-
-        # Быстрая проверка валидности StringSession (опционально, но рекомендуется)
         if not await _is_session_valid(session_string):
-            logger.warning(f"⚠️ Сессия {phone} не валидна — удаляем из БД")
+            logger.warning(f"⚠️ Сессия {phone} не валидна")
             await message.answer(
                 t("session_invalid", lang=user.language, phone=phone),
                 reply_markup=await _main_kb(user, user_id)
             )
-            # Удаляем невалидную сессию из БД
-
-            # Рекурсивно пробуем найти другой аккаунт
-            return await find_session_file(user_id, user, message)
+            return None
 
         logger.info(f"✅ Выбрана сессия: {phone} (первые 30 символов: {session_string[:30]}...)")
 
@@ -79,17 +67,11 @@ async def find_session_file(user_id: int, user, message):
 
 async def _is_session_valid(session_string: str) -> bool:
     """
-    Быстрая проверка валидности StringSession без полноценного подключения.
-
-    :param session_string: Строка сессии Telethon
-    :return: True если сессия выглядит валидной, False если нет
+    Быстрая проверка валидности StringSession.
     """
-
-    # Простая проверка: сессия не должна быть пустой и должна иметь правильный формат
     if not session_string or len(session_string) < 50:
         return False
 
-    # Пробуем создать клиент и подключиться (быстрый тест)
     client = TelegramClient(StringSession(session_string), API_ID, API_HASH)
 
     try:
@@ -103,5 +85,4 @@ async def _is_session_valid(session_string: str) -> bool:
             await client.disconnect()
         except Exception as e:
             logger.exception("session_lookup_error", error=e)
-            # pass
         return False

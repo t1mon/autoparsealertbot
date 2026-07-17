@@ -16,7 +16,7 @@ from telethon.errors import (
 from telethon.sessions import StringSession
 
 from core.config import API_ID, API_HASH
-from database.database import User, delete_account_from_db, get_user_accounts, getting_account
+from database.database import User, delete_account_from_db, get_active_account, getting_account
 from locales.locales import t
 
 mobile_device = {
@@ -59,13 +59,26 @@ class CheckingAccountsValidity:
         self.path = Path(path) if path else None
         self.user_id = user_id if user_id is not None else message.from_user.id
 
-    async def client_connect_string_session(self, session_name) -> TelegramClient | None:
+    async def client_connect_string_session(
+        self,
+        session_name,
+        *,
+        for_tracking: bool = False,
+    ) -> TelegramClient | None:
         """
         Подключение к Telegram аккаунту через StringSession
 
         :param session_name: Имя аккаунта для подключения (файл .session)
+        :param for_tracking: долгий клиент — бесконечные внутренние retries
         :return: Клиент Telegram или None, если подключение не удалось
         """
+        client_kwargs: dict = {}
+        if for_tracking:
+            # Внутренний auto-reconnect Telethon + наш внешний цикл в parser
+            client_kwargs["connection_retries"] = None
+            client_kwargs["retry_delay"] = 2
+            client_kwargs["auto_reconnect"] = True
+
         client = TelegramClient(
             StringSession(session_name),
             api_id=API_ID,
@@ -75,6 +88,7 @@ class CheckingAccountsValidity:
             app_version=mobile_device["app_version"],
             lang_code=mobile_device["lang_code"],
             system_lang_code=mobile_device["system_lang_code"],
+            **client_kwargs,
         )
 
         try:
@@ -199,8 +213,8 @@ class CheckingAccountsValidity:
         Подключает Telethon-клиент через аккаунт пользователя из UserAccountsTable.
         """
         uid = user_id if user_id is not None else self.user_id
-        accounts = get_user_accounts(uid)
-        if not accounts:
+        selected = get_active_account(uid)
+        if not selected:
             logger.warning(f"⚠️ У пользователя {uid} нет подключённых аккаунтов в БД")
             if notify and self.message:
                 from keyboards.user.keyboards import connect_keyboard_account
@@ -212,7 +226,6 @@ class CheckingAccountsValidity:
                 )
             return None
 
-        selected = random.choice(accounts)
         logger.info(f"Используется аккаунт пользователя {uid}: {selected.get('phone_number', 'unknown')}")
         return await self.client_connect_string_session(selected["session_string"])
 

@@ -52,6 +52,17 @@ def _parse_admin_user_ids(raw: str | None) -> frozenset[int]:
 
 ADMIN_USER_IDS = _parse_admin_user_ids(os.getenv("ADMIN_USER_IDS"))
 
+_allowed_raw = os.getenv("ALLOWED_USER_IDS")
+ALLOWED_USER_IDS = (
+    _parse_admin_user_ids(_allowed_raw) if _allowed_raw and _allowed_raw.strip() else ADMIN_USER_IDS
+)
+
+CLOSED_BETA = (os.getenv("CLOSED_BETA") or "true").lower() in ("1", "true", "yes")
+
+_developer = (os.getenv("DEVELOPER_USERNAME") or "cheef_engineer").strip().lstrip("@")
+DEVELOPER_USERNAME = _developer or "cheef_engineer"
+DEVELOPER_CONTACT_URL = f"https://t.me/{DEVELOPER_USERNAME}"
+
 
 def _parse_port(raw: str | None) -> int:
     if not raw or not raw.strip().isdigit():
@@ -71,6 +82,35 @@ def _parse_cors_origins(raw: str | None) -> list[str]:
 CORS_ORIGINS = _parse_cors_origins(os.getenv("CORS_ORIGINS"))
 
 REDIS_URL = (os.getenv("REDIS_URL") or "").strip()
+
+
+def _parse_positive_int(raw: str | None, default: int) -> int:
+    if not raw or not str(raw).strip().isdigit():
+        return default
+    return max(1, int(str(raw).strip()))
+
+
+def _parse_nonneg_int(raw: str | None, default: int) -> int:
+    if raw is None or not str(raw).strip():
+        return default
+    if not str(raw).strip().isdigit():
+        return default
+    return max(0, int(str(raw).strip()))
+
+
+# Антибан при массовых JoinChannel (секунды / лимиты)
+JOIN_DELAY_MIN = _parse_positive_int(os.getenv("JOIN_DELAY_MIN"), 20)
+JOIN_DELAY_MAX = _parse_positive_int(os.getenv("JOIN_DELAY_MAX"), 45)
+if JOIN_DELAY_MAX < JOIN_DELAY_MIN:
+    JOIN_DELAY_MAX = JOIN_DELAY_MIN
+JOIN_ERROR_DELAY_MIN = _parse_positive_int(os.getenv("JOIN_ERROR_DELAY_MIN"), 10)
+JOIN_ERROR_DELAY_MAX = _parse_positive_int(os.getenv("JOIN_ERROR_DELAY_MAX"), 25)
+if JOIN_ERROR_DELAY_MAX < JOIN_ERROR_DELAY_MIN:
+    JOIN_ERROR_DELAY_MAX = JOIN_ERROR_DELAY_MIN
+JOIN_BATCH_LIMIT = _parse_positive_int(os.getenv("JOIN_BATCH_LIMIT"), 40)
+JOIN_DAILY_LIMIT = _parse_positive_int(os.getenv("JOIN_DAILY_LIMIT"), 80)
+# 0 = не слать промежуточные «подписался на …»; иначе каждые N новых join (+ первый)
+JOIN_NOTIFY_EVERY = _parse_nonneg_int(os.getenv("JOIN_NOTIFY_EVERY"), 5)
 
 # Logging (как в bedolaga)
 LOG_LEVEL = (os.getenv("LOG_LEVEL") or "INFO").strip()

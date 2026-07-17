@@ -6,11 +6,27 @@ import structlog
 
 logger = structlog.get_logger(__name__)
 from telethon import types, utils as tg_utils
-from telethon.errors import InviteHashExpiredError, InviteHashInvalidError, UserAlreadyParticipantError
+from telethon.errors import (
+    ChannelPrivateError,
+    InviteHashExpiredError,
+    InviteHashInvalidError,
+    InviteRequestSentError,
+    UserAlreadyParticipantError,
+)
 from telethon.tl.functions.channels import GetParticipantRequest, JoinChannelRequest
 from telethon.tl.functions.messages import CheckChatInviteRequest, ImportChatInviteRequest
 from telethon.tl.types import Channel, ChatInviteAlready, InputPeerSelf
 
+from account_manager.join_result import JoinResult
+from core.membership_status import (
+    REASON_CHECK_FAILED,
+    REASON_INVALID_REF,
+    REASON_INVITE_EXPIRED,
+    REASON_NOT_MEMBER,
+    REASON_PENDING_APPROVAL,
+    REASON_PRIVATE,
+    REASON_UNKNOWN,
+)
 from core.telegram_utils import chat_ref_label, normalize_telegram_chat_ref
 
 
@@ -153,44 +169,139 @@ async def is_member_of_ref(client, ref: str, subscribed_usernames: set[str], sub
     return False
 
 
-async def join_chat_ref(client, ref: str) -> str:
+async def probe_missing_reason(client, ref: str) -> str:
     """
-    Подписывает аккаунт на чат.
-    :return: joined | already | error
+    Уточняет причину «не в канале» без повторного JoinChannel.
     """
     canonical = normalize_telegram_chat_ref(ref) or ref
 
     if canonical.startswith("@"):
         try:
-            await client(JoinChannelRequest(canonical))
-            return "joined"
+            entity = await client.get_entity(canonical)
+            if isinstance(entity, Channel) and getattr(entity, "join_request", False):
+                return REASON_PENDING_APPROVAL
+            return REASON_NOT_MEMBER
+        except ChannelPrivateError:
+            return REASON_PRIVATE
+        except Exception:
+            return REASON_NOT_MEMBER
+
+    if canonical.startswith("invite:"):
+        invite_hash = canonical[7:]
+        try:
+            checked = await client(CheckChatInviteRequest(invite_hash))
+            if getattr(checked, "request_needed", False):
+                return REASON_PENDING_APPROVAL
+            return REASON_NOT_MEMBER
+        except (InviteHashExpiredError, InviteHashInvalidError):
+            return REASON_INVITE_EXPIRED
         except UserAlreadyParticipantError:
-            return "already"
+            return REASON_NOT_MEMBER
+        except Exception:
+            return REASON_NOT_MEMBER
+
+    if canonical.startswith("id:"):
+        try:
+            entity = await client.get_entity(int(canonical[3:]))
+            await client(GetParticipantRequest(entity, InputPeerSelf()))
+            return REASON_NOT_MEMBER
+        except ChannelPrivateError:
+            return REASON_PRIVATE
+        except Exception:
+            return REASON_NOT_MEMBER
+
+    return REASON_UNKNOWN
+
+
+async def check_channels_membership(
+    client,
+    channels: list[str],
+    *,
+    delay_sec: float = 0.15,
+) -> dict:
+    """
+    Сверяет список каналов с подписками активного аккаунта.
+    Возвращает: ok, missing, errors, reasons (каноническая ссылка → код причины).
+    """
+    import asyncio
+
+    subscribed_usernames, subscribed_peer_ids = await get_subscribed_refs(client)
+    ok: list[str] = []
+    missing: list[str] = []
+    errors: list[str] = []
+    reasons: dict[str, str] = {}
+
+    for raw in channels:
+        canonical = normalize_telegram_chat_ref(raw) or (raw or "").strip()
+        if not canonical:
+            errors.append(str(raw))
+            reasons[str(raw)] = REASON_INVALID_REF
+            continue
+        try:
+            if await is_member_of_ref(
+                client, canonical, subscribed_usernames, subscribed_peer_ids
+            ):
+                ok.append(canonical)
+            else:
+                missing.append(canonical)
+                reasons[canonical] = await probe_missing_reason(client, canonical)
+        except Exception as e:
+            logger.warning(
+                "membership_check_error",
+                channel=chat_ref_label(canonical),
+                error=str(e),
+            )
+            errors.append(canonical)
+            reasons[canonical] = REASON_CHECK_FAILED
+        if delay_sec > 0:
+            await asyncio.sleep(delay_sec)
+
+    return {"ok": ok, "missing": missing, "errors": errors, "reasons": reasons}
+
+
+async def join_chat_ref(client, ref: str) -> JoinResult:
+    """
+    Подписывает аккаунт на чат.
+  """
+    canonical = normalize_telegram_chat_ref(ref) or ref
+
+    if canonical.startswith("@"):
+        try:
+            await client(JoinChannelRequest(canonical))
+            return JoinResult("joined")
+        except UserAlreadyParticipantError:
+            return JoinResult("already")
+        except InviteRequestSentError:
+            return JoinResult("error", REASON_PENDING_APPROVAL)
+        except ChannelPrivateError:
+            return JoinResult("error", REASON_PRIVATE)
         except Exception as e:
             logger.warning(f"Не удалось подписаться на {canonical}: {e}")
-            return "error"
+            return JoinResult("error", REASON_UNKNOWN)
 
     if canonical.startswith("invite:"):
         invite_hash = canonical[7:]
         try:
             await client(ImportChatInviteRequest(invite_hash))
-            return "joined"
+            return JoinResult("joined")
         except UserAlreadyParticipantError:
-            return "already"
+            return JoinResult("already")
+        except InviteRequestSentError:
+            return JoinResult("error", REASON_PENDING_APPROVAL)
         except (InviteHashExpiredError, InviteHashInvalidError) as e:
             logger.warning(f"Invite недействителен {chat_ref_label(canonical)}: {e}")
-            return "error"
+            return JoinResult("error", REASON_INVITE_EXPIRED)
         except Exception as e:
             logger.warning(f"Ошибка вступления по invite {chat_ref_label(canonical)}: {e}")
-            return "error"
+            return JoinResult("error", REASON_UNKNOWN)
 
     if canonical.startswith("id:"):
         if await is_member_of_ref(client, canonical, set(), set()):
-            return "already"
+            return JoinResult("already")
         logger.warning(
             f"Приватный чат {canonical} недоступен: аккаунт должен уже состоять в группе "
             f"или добавьте invite-ссылку"
         )
-        return "error"
+        return JoinResult("error", REASON_PRIVATE)
 
-    return "error"
+    return JoinResult("error", REASON_INVALID_REF)

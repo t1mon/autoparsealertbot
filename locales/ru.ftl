@@ -1,40 +1,117 @@
 # Russian localization
+access_denied_full =
+    🔒 <b>Бот в закрытом тестировании</b>
+
+    Полный доступ — только по приглашению.
+    Напишите разработчику: { $developer }
+
+    Укажите, для чего нужен парсер (ниша, пример каналов).
+access_denied_short =
+    🔒 Доступ только по запросу. Напишите { $developer }
+access_contact_developer_button = 💬 Написать разработчику
+access_denied_group =
+    🔒 Бот в закрытом тестировании. Управление — только в личке @{ $bot_username }
+
+group_chat_use_private =
+    🤖 Настройки и меню бота — только в личных сообщениях.
+
+    Откройте @{ $bot_username } и нажмите /start
+
+    В группе доступны только:
+    • <code>/bind_alerts ТОКЕН</code> — привязка (из настроек)
+    • <code>/leads</code> — выгрузка лидов
+group_chat_use_private_short =
+    Управление ботом — в личке @{ $bot_username }. Здесь: /bind_alerts и /leads
+group_chat_command_private =
+    Эта команда работает только в личке с @{ $bot_username }
+group_chat_callback_private = Кнопки меню работают только в личке с ботом
+group_chat_open_bot_button = 💬 Открыть бота
+
 welcome_ask_language =
     🌍 Привет! Пожалуйста, выберите язык интерфейса:
 welcome_message_template =
-    🤖 Добро пожаловать в Telegram-бота для отслеживания 🔍 ключевых слов в группах и каналах!, а так же поиска групп и каналов с помощью AI
+    📡 <b>Парсинг:</b> { $tracking_status }
+    👤 <b>Аккаунт:</b> { $account_label }
+    🔑 <b>Ключей:</b> { $keywords_count }
+    📢 <b>Каналов:</b> { $channels_enabled } включено / { $channels_total } всего
 
-    📋 <b>Версия:</b> { $version }
-    📅 <b>Дата обновления:</b> 02.07.2026 года
+    { $howto_block }{ $next_hint }
 
-    📊 <b>Найдено групп / каналов пользователями:</b> { $groups_count }
+howto_3_steps =
+    🚀 <b>Запуск за 3 шага</b>
 
-    📱 <b>Подключённых аккаунтов:</b> { $count }
-    📬 <b>Уведомления:</b> приходят прямо в этот чат с ботом
-    🔍 <b>Ключевых слов:</b> { $keywords_count }
-    📡 <b>Отслеживаемых каналов:</b> { $get_groups }
+    <b>1. Аккаунт</b> — «Мой парсинг» → Аккаунт → файл <code>.session</code>
+    <b>2. Ключевые слова</b> — что искать в чатах (есть «Проверь сообщение»)
+    <b>3. Каналы</b> — добавьте @каналы и включите парсинг ✅ в списке
 
-    🎉 <b>Основные функции бота:</b>
+    На главном экране нажмите <b>«Запустить»</b> — совпадения придут сюда.
+howto_3_steps_short =
+    🚀 <b>За 3 шага:</b> аккаунт → ключи → каналы → «Запустить»
 
-    • 🤖 <b>AI-поиск:</b> находите группы и каналы с помощью искусственного интеллекта
-    • 📥 <b>Получить базу:</b> скачайте актуальную базу найденных каналов и групп
-    • 📚 <b>Инструкция:</b> подробное руководство по использованию бота
-    • ⚙️ <b>Настройки:</b> настройте подключение аккаунтов, ключевые слова и фильтры
+next_step_account = 👉 Дальше: подключите Telegram-аккаунт (.session)
+next_step_keywords = 👉 Дальше: добавьте хотя бы одно ключевое слово
+next_step_channels = 👉 Дальше: добавьте канал и включите парсинг (✅ в списке)
+next_step_ready_start = 👉 Всё готово — нажмите «Запустить»
+next_step_tracking_on = 📬 Парсинг работает — совпадения приходят в этот чат
 
-    💡 <b>Совет:</b> для получения актуальных обновлений и нового функционала рекомендуется перезапускать бота командой /start
+tracking_status_running = ▶ работает
+tracking_status_stopped = ⏹ остановлен
+account_not_connected = не подключён
+account_connected_unknown = подключён
+my_parsing_button = 📡 Мой парсинг
+cabinet_account_button = 👤 Аккаунт
+accounts_menu_template =
+    👤 <b>Аккаунты</b>
+
+    Активный: <code>{ $active_label }</code>
+    Всего: <b>{ $count }</b>
+
+    ● — активный · ○ — нажмите, чтобы выбрать · ✕ — удалить
+accounts_connect_button = ➕ Подключить новый
+accounts_check_button = ✅ Проверить активный
+accounts_set_active_ok = Активный: { $phone }
+accounts_deleted_ok = Аккаунт удалён
+accounts_not_found = Аккаунт не найден
+accounts_check_progress = Проверяю…
+accounts_check_ok = ✅ <b>{ $phone }</b> — сессия валидна
+accounts_check_fail = ❌ <b>{ $phone }</b> — сессия невалидна. Подключите новый .session или выберите другой аккаунт.
+cabinet_message_template =
+    <b>Мой парсинг</b>
+
+    { $check_account } Аккаунт: <code>{ $account_label }</code>
+    { $check_keywords } Ключевые слова: <b>{ $keywords_count }</b>
+    { $check_channels } Каналы: <b>{ $channels_enabled }</b> вкл / <b>{ $channels_total }</b> всего
+    🎯 Режим поиска: <b>{ $match_mode }</b>
+
+    { $hint }
+cabinet_hint_ready = ✅ Всё готово — можно запускать на главном экране.
+cabinet_hint_not_ready = ⚠️ Чтобы запустить парсинг, нужны аккаунт, хотя бы одно ключевое слово и один включённый канал.
+
+wizard_message_template =
+    🚀 <b>Настройка за 3 шага</b>
+
+    { $check_account } 1. Аккаунт: <code>{ $account_label }</code>
+    { $check_keywords } 2. Ключевые слова: <b>{ $keywords_count }</b>
+    { $check_channels } 3. Каналы: <b>{ $channels_enabled }</b> вкл / <b>{ $channels_total }</b> всего
+
+    { $step_hint }
+wizard_hint_account = Сейчас шаг 1: подключите Telegram-аккаунт (.session).
+wizard_hint_keywords = Сейчас шаг 2: добавьте хотя бы одно ключевое слово.
+wizard_hint_channels = Сейчас шаг 3: добавьте канал и включите парсинг ✅.
+wizard_hint_ready = ✅ Три шага готовы — нажмите «Запустить».
+wizard_cta_account = 👤 Подключить аккаунт
+wizard_cta_keywords = 🔑 Добавить ключи
+wizard_cta_channels = 📢 Добавить каналы
+wizard_continue_button = 🚀 Продолжить настройку
+wizard_skip_button = В меню
 
 lang_selected =
     ✅ Отлично! Интерфейс теперь будет отображаться на выбранном языке.
 settings_message =
-    ⚙️ В этом меню вы можете:
-    • 🔗 🔐 Подключить аккаунт Telegram
-    • 🌐 Изменить язык интерфейса
-    • 📢 Добавить группы и каналы для отслеживания
-    • 🧩 Настроить ключевые слова и фильтры
+    ⚙️ <b>Настройки</b>
 
-    📬 Совпадения по ключевым словам приходят прямо сюда, в чат с ботом.
-
-    Выберите нужный пункт ниже 👇
+    Здесь — фильтры алертов, язык и Stars.
+    Аккаунт, ключи и каналы: «Мой парсинг» на главном экране.
 connect_account =
     📱 Для подключения аккаунта Telegram отправьте файл сессии в формате:
     `+79599999999.session`
@@ -45,10 +122,20 @@ launching_tracking =
 
     Совпадения по ключевым словам будут приходить в этот чат.
 tracking_launch_error =
-    ⚠️ Список каналов пуст.
+    ⚠️ Нет включённых каналов для парсинга.
 
-    Добавьте хотя бы одну группу или канал для отслеживания 🔍
-    через меню настроек ⚙️
+    Добавьте каналы и включите хотя бы один в <b>Мой парсинг → Каналы</b>.
+tracking_not_ready =
+    ⚠️ Ещё рано запускать парсинг. Не хватает:
+
+    { $gaps }
+
+    Откройте <b>Мой парсинг</b> и закройте пункты чеклиста.
+setup_before_start_button = ⚠️ Сначала настройте
+ready_gap_account = подключите Telegram-аккаунт
+ready_gap_keywords = добавьте хотя бы одно ключевое слово
+ready_gap_channels_none = добавьте хотя бы один канал
+ready_gap_channels_disabled = включите парсинг хотя бы у одного канала (✅ в списке)
 update_list =
     📥 Пришлите .txt файл или отправьте текстом список групп и каналов для отслеживания:
 
@@ -69,7 +156,212 @@ account_missing =
 account_missing_2 =
     ⚠️ Сессия аккаунта недействительна (session файл не валидный) — требуется повторный вход. Отправьте валидный файл сессии
 enter_keyword =
-    🔍 Введите ключевое слово / словосочетание для отслеживания
+    🔍 Добавьте ключевые слова:
+
+    • текстом — каждое с новой строки или через запятую
+    • файлом <code>.txt</code> — одна фраза на строку
+
+    После отправки слова появятся в списке «Мой парсинг → Ключевые слова».
+keywords_menu_message =
+    🔑 <b>Ключевые слова</b>
+
+    Сейчас сохранено: <b>{ $count }</b>
+    Режим поиска: <b>{ $match_mode }</b>
+
+    Добавляйте текстом или .txt, смотрите список, удаляйте лишнее или скачивайте файл.
+keywords_menu_button = 🔑 Ключевые слова
+keywords_add_button = ➕ Добавить
+keywords_view_list_button = 📋 Смотреть списком
+keywords_export_txt_button = 📄 .txt
+keywords_export_xlsx_button = 📊 Excel
+keywords_list_title =
+    🔑 Ключевые слова: <b>{ $count }</b> · стр. { $page }
+    Нажмите ✕ чтобы удалить:
+keyword_deleted = Удалено: { $keyword }
+keyword_delete_missing = Ключ уже удалён
+match_mode_button = 🎯 Режим поиска
+match_mode_strict_button = Строгий (только точная фраза)
+match_mode_smart_button = Умный (рекомендуется)
+match_mode_loose_button = Мягкий (больше срабатываний)
+match_mode_strict_name = строгий
+match_mode_smart_name = умный
+match_mode_loose_name = мягкий
+match_mode_message =
+    🎯 <b>Режим поиска ключей</b>
+
+    Сейчас: <b>{ $current }</b>
+
+    • <b>Строгий</b> — только точное вхождение фразы
+    • <b>Умный</b> — словоформы и опечатки, все слова фразы обязательны
+    • <b>Мягкий</b> — больше ложных срабатываний (старое поведение)
+match_mode_saved = Режим: { $mode }
+match_check_button = 🧪 Проверь сообщение
+match_check_no_keywords = Сначала добавьте ключевые слова
+match_check_prompt =
+    🧪 <b>Проверка сообщения</b>
+
+    Ключей: <b>{ $count }</b> · режим: <b>{ $mode }</b>
+
+    Пришлите текст (как из чата) — покажу, какие ключи сработают и почему.
+    Стоп-слова тоже проверяются.
+match_check_empty = Пустой текст — пришлите сообщение
+match_check_need_text = Нужен обычный текст (не файл/фото)
+match_check_none =
+    ❌ <b>Совпадений нет</b>
+
+    Режим: { $mode } · проверено ключей: { $checked }
+
+    <b>Текст:</b>
+    <i>{ $preview }</i>
+match_check_hits =
+    ✅ <b>Сработало: { $hit_count }</b> из { $checked }
+
+    Режим: { $mode }
+
+    { $rows }
+    { $more }
+
+    <b>Текст:</b>
+    <i>{ $preview }</i>
+match_check_row = { $n }. <code>{ $keyword }</code>
+    → { $why }
+match_check_more = …и ещё { $count }
+match_check_stopword =
+    🚫 Стоп-слово «{ $stopword }» — в бою алерт и лид не создались бы.
+match_check_again_hint = Можете прислать ещё текст или нажать «Назад».
+channels_menu_message =
+    📢 <b>Каналы для парсинга</b>
+
+    Включено: <b>{ $enabled }</b> · всего в списке: <b>{ $total }</b>
+
+    Добавляйте текстом или .txt, включайте/выключайте в списке.
+    «Проверить подписки» — видит ли активный аккаунт эти каналы.
+channels_menu_button = 📢 Каналы
+channels_add_button = ➕ Добавить
+channels_view_list_button = 📋 Смотреть списком
+channels_check_subs_button = 🔎 Проверить подписки
+channels_join_missing_button = ➕ Подписать на недостающие
+channels_check_no_account = Сначала подключите аккаунт
+channels_check_no_enabled = Нет включённых каналов
+channels_check_progress = Проверяю…
+channels_check_progress_msg =
+    🔎 Проверяю подписки активного аккаунта на <b>{ $count }</b> канал(ов)…
+channels_check_connect_fail =
+    ❌ Не удалось подключить активный аккаунт. Проверьте .session.
+channels_check_error =
+    ❌ Ошибка при проверке подписок. Попробуйте позже.
+channels_check_report =
+    🔎 <b>Подписки аккаунта</b> <code>{ $phone }</code>
+
+    ✅ В канале: <b>{ $ok_count }</b>
+    ⚠️ Нет подписки: <b>{ $missing_count }</b>
+    ❌ Ошибка проверки: <b>{ $error_count }</b>
+
+    <b>Нет подписки:</b>
+    { $missing_list }
+
+    <b>Ошибки:</b>
+    { $error_list }
+
+    Без подписки сообщения из канала могут не приходить. Можно подписать сейчас или запустить tracking — бот попробует вступить в фоне.
+
+    <i>✅ — парсинг вкл/выкл. ⚠️ нет подписки · 🕐 ждёт одобрения · 🔒 приватный/недоступен · ❌ ошибка.</i>
+channels_join_nothing = Нечего подписывать — сначала сделайте проверку
+channels_join_progress =
+    ➕ Подписываю на <b>{ $count }</b> канал(ов)… Это может занять время.
+channels_join_progress_live =
+    ➕ <b>Подписка на каналы</b> · { $done }/{ $total }
+
+    Сейчас: <code>{ $channel }</code>
+    ✅ { $joined } · уже были { $already } · ❌ { $errors }
+
+    { $status }
+channels_join_status_pause =
+    ⏳ Пауза <b>{ $delay }</b> сек. перед следующим…
+channels_join_status_working =
+    🔄 Вступаю…
+channels_join_cancel_button = ⏹ Отменить
+channels_join_cancel_confirm =
+    ⏹ <b>Отменить подписку?</b>
+
+    Уже обработанные каналы останутся подписанными. Остальные можно будет продолжить позже.
+channels_join_cancel_yes = ✅ Да, отменить
+channels_join_cancelling_msg = ⏹ Отмена подписки…
+channels_join_already_running = Подписка уже идёт — дождитесь завершения или отмените её
+channels_join_background_hint = Подписка продолжается в фоне — пришлю итог отдельным сообщением
+channels_join_stopped =
+    ⏹ <b>Подписка отменена</b>
+
+    Новых подписок: <b>{ $joined }</b>
+    Уже были: <b>{ $already }</b>
+    Ошибок: <b>{ $errors }</b>
+    Не обработано: <b>{ $remaining }</b>
+channels_join_done =
+    ✅ Готово.
+
+    Новых подписок: <b>{ $joined }</b>
+    Уже были: <b>{ $already }</b>
+    Ошибок: <b>{ $errors }</b>
+    Отложено лимитом: <b>{ $skipped }</b>
+channels_export_txt_button = 📄 .txt
+channels_export_xlsx_button = 📊 Excel
+channels_clear_button = 🗑️ Очистить всё
+channels_list_title =
+    📢 Каналы: <b>{ $enabled }</b> вкл / <b>{ $total }</b> · стр. { $page }
+    ✅/⏸ парсинг · ⚠️🕐🔒❌ подписка · ✕ удалить
+channel_deleted = Удалено: { $channel }
+channel_missing = Канал уже удалён
+channel_membership_ok = в канале
+channel_membership_missing = нет подписки
+channel_membership_pending = ждёт одобрения
+channel_membership_private = приватный
+channel_membership_error = ошибка подписки
+membership_reason_not_member = нет подписки аккаунта
+membership_reason_pending_approval = нужно одобрение админа (заявка отправлена или требуется)
+membership_reason_private = чат приватный или недоступен
+membership_reason_check_failed = не удалось проверить
+membership_reason_invalid_ref = неверная ссылка
+membership_reason_invite_expired = invite-ссылка истекла
+membership_reason_unknown = не удалось вступить
+channel_enabled = Включено: { $channel }
+channel_disabled = Выключено: { $channel }
+channel_status_on = вкл
+channel_status_off = выкл
+excel_header_parse_status = Парсинг
+leads_menu_button = 📋 Совпадения
+leads_view_list_button = 📋 Смотреть списком
+leads_export_xlsx_button = 📊 Excel
+leads_menu_message =
+    📋 <b>Совпадения</b>
+
+    Сохранено: <b>{ $count }</b>
+
+    Здесь история пойманных сообщений по ключам — список и выгрузка Excel.
+leads_list_title =
+    📋 Совпадения: <b>{ $count }</b> · стр. { $page }
+    Нажмите карточку, чтобы открыть:
+leads_empty = 📭 Пока нет сохранённых совпадений. Они появятся после срабатывания ключей.
+leads_missing = Запись не найдена
+leads_export_caption = 📋 Экспорт совпадений. Всего: { $count }
+leads_card =
+    📋 <b>Совпадение</b>
+
+    <b>Ключ:</b> <code>{ $keyword }</code>
+    <b>Автор:</b> { $author }
+    <b>Чат:</b> { $chat }
+    <b>Время:</b> { $when }
+    <b>Ссылка:</b> { $link }
+
+    <b>Текст:</b>
+    { $message_text }
+excel_header_lead_time = Время
+excel_header_author_name = Автор
+excel_header_author_username = @username
+excel_header_author_id = Author ID
+excel_header_chat_title = Чат
+excel_header_link = Ссылка
+excel_header_message_text = Текст
+
 ai_search_welcome =
     🤖 <b>Добро пожаловать в меню AI-поиска!</b>
 
@@ -90,6 +382,8 @@ admin_panel_message =
     👋 <b>Добро пожаловать в Панель администратора!</b>
 
     Вот что вы можете сделать:
+
+    📡 <b>Tracking</b> — кто сейчас парсит, ключи/каналы, принудительный stop.
 
     📁 <b>Получить лог-файл</b> — просмотреть журнал ошибок и событий бота за последнее время. Полезно для диагностики.
 
@@ -117,11 +411,33 @@ instruction_caption =
 
     Рекомендуем ознакомиться для эффективного использования всех возможностей бота.
 
+instruction_howto_extra =
+    💡 Подсказка: в «Ключевых словах» есть <b>«Проверь сообщение»</b> — можно проверить текст до запуска.
+
+    Задайте вопрос кнопкой ниже — отвечу по возможностям бота.
+instruction_ask_button = ❓ Задать вопрос
+instruction_ask_prompt =
+    🤖 Напишите вопрос по использованию бота — отвечу с опорой на инструкцию.
 instruction_file_not_found =
     ⚠️ Файл инструкции не найден на сервере.
 
 instruction_send_error =
-    ❌ Произошла ошибка при отправке файла.
+    ❌ Не удалось ответить. Попробуйте позже или напишите в поддержку.
+instruction_menu_error =
+    ❌ Не удалось открыть инструкцию. Попробуйте /start.
+instruction_ai_no_key =
+    ⚠️ AI-ответы не настроены: в .env нет <code>GROQ_API_KEY</code>.
+
+    Бесплатный ключ: https://console.groq.com/keys
+    После добавления в .env перезапустите бота.
+instruction_ai_auth_error =
+    ⚠️ Ключ Groq неверный или отозван. Проверьте <code>GROQ_API_KEY</code> в .env.
+instruction_ai_connection_error =
+    ⚠️ Не удалось связаться с Groq (сеть/DNS/прокси). Проверьте интернет и PROXY_* в .env.
+instruction_ai_empty =
+    ⚠️ Пустой ответ от AI. Попробуйте переформулировать вопрос.
+instruction_ai_error =
+    ❌ Ошибка при ответе AI. Попробуйте позже.
 
 # === Экспорт базы данных ===
 database_empty =
@@ -331,11 +647,21 @@ no_channels_to_track =
     📭 У вас нет добавленных каналов для отслеживания.
 
 too_many_channels =
-    ⚠️ Найдено { $total } каналов. Подписка будет выполнена только на первые { $limit }.
+    ⚠️ Найдено { $total } каналов. За этот проход подписка только на первые { $limit } (лимит антибана). Остальные — при следующем запуске.
 
 channel_subscribed =
     ✅ Подписка на { $channel } выполнена
-    ⏳ Следующая попытка через { $delay } сек.
+    ⏳ Пауза { $delay } сек. перед следующей…
+
+join_daily_limit =
+    ⏸ Суточный лимит вступлений исчерпан ({ $limit }/сутки). Продолжим завтра или увеличьте JOIN_DAILY_LIMIT.
+
+join_batch_summary =
+    📊 Подписки за этот проход:
+    • новых: <b>{ $joined }</b>
+    • уже были: <b>{ $already }</b>
+    • ошибок: <b>{ $errors }</b>
+    • отложено лимитом: <b>{ $skipped }</b>
 
 target_group_join_error =
     ❌ Аккаунту не удалось присоединиться к целевой группе, проверьте подключенную группу
@@ -356,12 +682,55 @@ keyword_match_alert =
 
     <b>Источник:</b> { $chat_title }
     <b>Чат:</b> { $chat_username }
+    <b>Автор:</b> { $author }
+    <b>Время:</b> { $message_time }
     <b>Ссылка:</b> { $message_link }
 
     <b>Ключевое слово:</b> <code>{ $matched_keyword }</code>
+    <b>Почему:</b> { $match_why }
 
     <b>Текст сообщения:</b>
     { $message_text }
+
+keyword_match_alert_compact =
+    📥 <b>{ $matched_keyword }</b> · { $chat_title }
+    { $author } · { $message_time }
+    { $message_link }
+    <i>{ $match_why }</i>
+
+    { $message_text }
+
+keyword_match_alert_minimal =
+    <b>{ $matched_keyword }</b>
+    <i>{ $match_why }</i>
+    { $message_link }
+
+    { $message_text }
+
+alert_why_exact = точная фраза · режим «{ $mode }»
+alert_why_tokens = слова: { $tokens } · режим «{ $mode }»
+alert_why_loose = частично: { $tokens } · режим «{ $mode }»
+
+alert_time_value = { $datetime } ({ $tz })
+alert_chat_id_only = id { $chat_id }
+alert_chat_id_typed = id { $chat_id } ({ $chat_type })
+alert_chat_type_channel = канал
+alert_chat_type_supergroup = супергруппа
+alert_chat_type_group = группа
+alert_chat_type_user = личный чат
+alert_open_button = 🔗 Открыть
+alert_mute_24h_button = 🔕 Игнор 24ч
+alert_mute_ok = Канал id { $chat_id } скрыт на { $hours } ч
+alert_mute_invalid = Не удалось заглушить канал
+
+alert_author_id = · id { $id }
+alert_author_id_only = id { $id }
+alert_author_unknown = — (канал / anonymous)
+alert_author_signed = подпись: { $name }
+alert_author_channel = канал
+alert_author_forward = переслано от { $name }
+alert_author_forward_entity = переслано · { $author }
+alert_author_forward_id = переслано · id { $id }
 
 message_link_unavailable = Ссылка недоступна
 
@@ -377,8 +746,28 @@ tracking_stop_requested =
 tracking_restored =
     🔄 Отслеживание восстановлено после перезапуска сервиса.
 
+tracking_reconnected =
+    🔄 Связь с Telegram восстановлена — снова слушаю каналы.
+
+tracking_reconnect_failed =
+    ❌ Не удалось восстановить связь с Telegram. Отслеживание остановлено.
+    Запустите снова, когда сеть будет доступна.
+
+tracking_failover_ok =
+    🔄 Аккаунт сменился: { $from_phone } → { $to_phone }. Продолжаю слушать.
+
+tracking_failover_failed =
+    ❌ Не удалось восстановить связь и переключиться на запасной аккаунт.
+    Подключите второй .session в «Мой парсинг» → Аккаунт или запустите снова позже.
+
+tracking_not_subscribed_warn =
+    ⚠️ Аккаунт ещё не в <b>{ $count }</b> канал(ах): { $preview }
+
+    Сейчас слушаю доступные; в фоне попробую подписаться. Можно проверить вручную: Каналы → «Проверить подписки».
+
 search_client_error =
-    ❌ Ошибка при подключении к аккаунту. Попробуйте позже.
+    ❌ Не удалось подключить аккаунт для парсинга.
+    Проверьте .session или добавьте запасной аккаунт в «Мой парсинг» → Аккаунт.
 
 search_no_available_accounts =
     ⚠️ Нет подключённого аккаунта для поиска.
@@ -568,6 +957,31 @@ get_database_button = 📥 Получить базу
 instruction_button = 📖 Инструкция по использованию
 settings_button = ⚙️ Настройки
 admin_panel_button = 🛡️ Панель администратора
+admin_tracking_button = 📡 Tracking
+admin_tracking_message =
+    📡 <b>Активный tracking</b>: { $count }
+
+    Совпадений за час: <b>{ $matches }</b> · FloodWait за час: <b>{ $floods }</b>
+
+    { $rows }
+
+    ▶ — процесс в этом инстансе · ○ — только метка в Redis
+admin_tracking_empty =
+    📡 <b>Активный tracking</b>: 0
+
+    Совпадений за час: <b>{ $matches }</b> · FloodWait за час: <b>{ $floods }</b>
+
+    Сейчас никто не парсит.
+admin_tracking_row =
+    • <b>{ $user }</b>
+    ключи: { $keywords } · каналы: { $channels_enabled }/{ $channels_total }
+    { $local } local · client { $client } · uptime { $uptime }
+admin_tracking_stop_button = 🛑 Stop { $user_id }
+admin_tracking_refresh_button = 🔄 Обновить
+admin_tracking_refreshed = Обновлено
+admin_tracking_stopped = Остановлен { $user_id }
+admin_tracking_stop_invalid = Некорректный user_id
+admin_tracking_stop_error = Ошибка: { $error }
 get_log_file_button = 📄 Получить лог файл
 update_database_button = 🔄 Актуализация базы данных
 export_questions_button = Выгрузить вопросы
@@ -615,6 +1029,187 @@ keywords_list_button = 🔍 Список ключевых слов
 tracking_links_button = 🌐 Ссылки для отслеживания
 connect_group_for_messages_button = 📤 Пересылка в группу (скоро)
 change_language_button = 🌐 Сменить язык
+quiet_hours_button = 🌙 Тихие часы
+quiet_hours_message =
+    🌙 <b>Тихие часы</b>
+
+    Статус: <b>{ $status }</b>
+    Окно: <code>{ $window }</code>
+
+    В это время совпадения сохраняются в «Лиды», но уведомления в чат не приходят.
+quiet_hours_status_on = включены
+quiet_hours_status_off = выключены
+quiet_hours_enable_button = ✅ Включить
+quiet_hours_disable_button = ⏹ Выключить
+quiet_hours_preset_2308 = 23:00–08:00
+quiet_hours_preset_0007 = 00:00–07:00
+quiet_hours_preset_2209 = 22:00–09:00
+quiet_hours_toggled_on = Тихие часы включены
+quiet_hours_toggled_off = Тихие часы выключены
+quiet_hours_preset_saved = Окно: { $window }
+digest_button = 📦 Дайджест
+digest_settings_message =
+    📦 <b>Дайджест совпадений</b>
+
+    Статус: <b>{ $status }</b>
+    Интервал: <b>{ $interval }</b> мин
+
+    Вместо каждого алерта бот копит совпадения и присылает сводку одним сообщением.
+    Лиды в базе сохраняются сразу.
+digest_status_on = включён
+digest_status_off = выключен
+digest_enable_button = ✅ Включить
+digest_disable_button = ⏹ Выключить
+digest_interval_15 = 15 мин
+digest_interval_30 = 30 мин
+digest_interval_60 = 60 мин
+digest_flush_now_button = 📤 Отправить сейчас
+digest_toggled_on = Дайджест включён
+digest_toggled_off = Дайджест выключен
+digest_flushed_on_disable = Дайджест выключен, отправлено: { $count }
+digest_interval_saved = Интервал: { $interval } мин
+digest_flush_ok = Отправлено совпадений: { $count }
+digest_flush_empty = Буфер пуст
+digest_message =
+    📦 <b>Дайджест совпадений</b> ({ $count })
+
+    { $items }
+    { $more }
+digest_and_more =
+    …и ещё { $count }
+chat_filter_button = 📢 Тип чатов
+chat_filter_message =
+    📢 <b>Фильтр по типу чата</b>
+
+    Сейчас: <b>{ $current }</b>
+
+    • Все — каналы и группы/обсуждения
+    • Только каналы — посты канала (без комментов в группе обсуждений)
+    • Только группы — супергруппы и обсуждения
+chat_filter_all_name = все
+chat_filter_channels_name = только каналы
+chat_filter_groups_name = только группы
+chat_filter_all_button = Все чаты
+chat_filter_channels_button = Только каналы
+chat_filter_groups_button = Только группы
+chat_filter_saved = Фильтр: { $mode }
+alert_template_button = 📝 Шаблон алерта
+alert_template_message =
+    📝 <b>Шаблон алерта</b>
+
+    Сейчас: <b>{ $current }</b>
+
+    • Полный — все поля (источник, чат, автор, время, ссылка, ключ, почему, текст)
+    • Компактный — ключ, источник, автор, время, ссылка, почему и текст
+    • Минимальный — ключ, почему, ссылка и текст
+alert_template_full_name = полный
+alert_template_compact_name = компактный
+alert_template_minimal_name = минимальный
+alert_template_full_button = Полный
+alert_template_compact_button = Компактный
+alert_template_minimal_button = Минимальный
+alert_template_saved = Шаблон: { $mode }
+
+alert_destination_button = 📬 Куда слать алерты
+alert_destination_message =
+    📬 <b>Куда слать алерты</b>
+
+    В личку: <b>{ $dm_status }</b>
+    В группу: <b>{ $group_status }</b>
+
+    { $group_info }
+alert_destination_dm_button = В личку
+alert_destination_group_button = В группу
+alert_destination_on = вкл
+alert_destination_off = выкл
+alert_destination_group_unbound = Группа не привязана — включите «В группу» и привяжите чат.
+alert_destination_group_bound = Привязано: чат <code>{ $chat_id }</code>
+alert_destination_group_bound_topic = Привязано: чат <code>{ $chat_id }</code>, топик <code>{ $thread_id }</code>
+alert_destination_need_one_channel = Нужен хотя бы один канал доставки (личка или группа).
+alert_destination_bind_button = 🔗 Привязать группу
+alert_destination_rebind_button = 🔄 Сменить группу/топик
+alert_destination_unbind_button = ✂️ Отвязать группу
+alert_destination_unbound = Группа отвязана
+alert_destination_bind_instructions =
+    <b>Привязка группы для алертов</b>
+
+    1. Добавьте бота в supergroup (для топика — в нужный топик).
+    2. В группе или <b>в нужной теме</b> напишите команду:
+
+    <code>{ $command }</code>
+
+    Токен действует { $ttl_min } мин. Команду может выполнить только администратор группы.
+alert_destination_bind_ready_button = 🔄 Новый токен
+alert_destination_bind_token_required =
+    Нужен токен из настроек бота.
+
+    Сначала: Настройки → Куда слать алерты → Привязать группу.
+    Затем в группе/топике: <code>/bind_alerts ТОКЕН</code>
+alert_destination_bind_bad_token = Неверный или просроченный токен. Получите новый в настройках бота.
+alert_destination_bind_not_admin = Привязать группу может только администратор или создатель чата.
+alert_destination_bind_chat_taken = Этот чат/топик уже привязан к другому аккаунту бота.
+alert_destination_bind_success = ✅ Группа привязана: { $group_info }
+alert_destination_bind_success_short = ✅ Привязано: { $group_info }
+alert_destination_test_message = ✅ <b>Проверка доставки</b>\n\nАлерты в эту группу настроены.
+alert_destination_group_not_bound = Группа включена, но чат не привязан. Откройте настройки и привяжите группу.
+alert_group_delivery_failed =
+    ⚠️ Не удалось доставить алерт в группу (в личку отправлено).
+    { $error }
+alert_group_delivery_failed_only =
+    ⚠️ Не удалось доставить алерт в группу. Проверьте, что бот в чате и привязка актуальна.
+    { $error }
+
+leads_group_help =
+    <b>Выгрузка лидов в группе</b>
+
+    <code>/leads</code> — все лиды
+    <code>/leads 2026-07-01</code> — за один день
+    <code>/leads 2026-07-01 2026-07-17</code> — за период
+
+    Даты в часовом поясе бота (TIMEZONE). Только владелец аккаунта.
+
+    Если бот не отвечает — добавьте @username бота: <code>/leads@YourBot</code>
+    Сначала привяжите группу: <code>/bind_alerts ТОКЕН</code> в этой теме.
+leads_group_bad_dates = Неверный формат дат. Пример: <code>/leads 2026-07-01</code> или <code>/leads 2026-07-01 2026-07-17</code>
+leads_group_not_bound =
+    Группа для алертов не привязана.
+
+    В личке: Настройки → Куда слать алерты → Привязать группу → <code>/bind_alerts ТОКЕН</code> в этой теме.
+leads_group_disabled = Доставка в группу выключена. Включите «В группу» в настройках бота.
+leads_group_wrong_chat =
+    Эта группа не привязана к вашему аккаунту. Привязанный чат: <code>{ $chat_id }</code>
+leads_group_wrong_topic =
+    Команда доступна только в привязанной теме (топик <code>{ $thread_id }</code>).
+    Выполните <code>/bind_alerts ТОКЕН</code> в нужной теме.
+group_chat_allowed_command_failed =
+    Команда не выполнена. Проверьте привязку группы (/bind_alerts ТОКЕН) и что бот добавлен в чат.
+leads_group_export_day_caption = Лиды за { $date }: { $count } шт.
+leads_group_export_range_caption = Лиды { $date_from } — { $date_to }: { $count } шт.
+
+stopwords_menu_button = 🚫 Стоп-слова
+stopwords_menu_message =
+    🚫 <b>Стоп-слова</b>
+
+    Всего: <b>{ $count }</b>
+
+    Если в сообщении есть стоп-слово, алерт не отправится (даже при совпадении ключа).
+stopwords_add_button = ➕ Добавить
+stopwords_view_list_button = 📋 Список
+stopwords_add_prompt =
+    📥 Пришлите стоп-слова текстом или .txt файлом (по одному на строке или через запятую).
+
+    Пример:
+    спам
+    реклама
+    купи подписку
+stopwords_empty_input = Пустой ввод — добавьте хотя бы одно слово.
+stopwords_added_count = Добавлено стоп-слов: { $count }
+stopwords_already_added = Уже были ({ $count })
+stopwords_add_errors = Ошибки при добавлении
+stopwords_list_empty = Список стоп-слов пуст.
+stopwords_list_title = Стоп-слова: { $count } · стр. { $page }
+stopwords_deleted = Удалено: { $word }
+stopwords_missing = Стоп-слово не найдено
 connect_free_account_button = 🔐 Подключить свободный аккаунт
 
 # post_doc.py

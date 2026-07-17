@@ -76,3 +76,18 @@ async def close_redis() -> None:
 
 def is_redis_connected() -> bool:
     return _connected
+
+
+async def ping_redis() -> bool:
+    """Живой ping; при ошибке помечает клиент как отключённый."""
+    global _connected
+    redis = get_redis()
+    if redis is None:
+        return False
+    try:
+        await redis.ping()
+        return True
+    except Exception as e:
+        logger.warning("Redis ping failed", error=e)
+        _connected = False
+        return False

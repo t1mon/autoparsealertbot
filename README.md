@@ -85,6 +85,20 @@ docker compose up --build -d
 
 **Важно:** запускайте один экземпляр бота на один Redis. Несколько реплик приведут к дублированию Telethon-сессий.
 
+## 🧪 Тесты матчинга
+
+```bash
+pip install -r requirements-dev.txt
+PYTHONPATH=. pytest tests/test_keyword_match.py -q
+```
+
+Или через Docker (без rebuild образа):
+
+```bash
+docker compose run --rm --no-deps -v "$(pwd):/app" --entrypoint "" bot \
+  sh -c "pip install -q -r requirements-dev.txt && PYTHONPATH=/app python -m pytest tests/ -q"
+```
+
 ## 👑 Функции администратора
 
 Для пользователей с правами администратора доступна панель управления:

@@ -30,9 +30,9 @@
 
 ### Экран «Мой парсинг»
 
-- [ ] Чеклист: ☐ Аккаунт · ☐ Ключи · ☐ Каналы
-- [ ] Кнопки: Аккаунт · Ключевые слова · Каналы для парсинга
-- [ ] «Запустить» активна только если все ☐ закрыты (или с явным предупреждением)
+- [x] Чеклист: ☐ Аккаунт · ☐ Ключи · ☐ Каналы
+- [x] Кнопки: Аккаунт · Ключевые слова · Каналы для парсинга
+- [x] «Запустить» активна только если все ☐ закрыты (или с явным предупреждением)
 
 ### Настройки — разнести
 
@@ -45,15 +45,15 @@
 
 ## Задачи
 
-- [ ] P0: статус-блок на главном меню (`show_main_menu` / welcome template)
-- [ ] P0: экран `menu:cabinet` («Мой парсинг») с чеклистом
-- [ ] P0: перегруппировать `settings_keyboard`
-- [ ] P1: wizard первого запуска (аккаунт → ключи → каналы → старт)
-- [ ] P2: подсказки «что дальше» если чего-то не хватает
+- [x] P0: статус-блок на главном меню (`show_main_menu` / welcome template)
+- [x] P0: экран `menu:cabinet` («Мой парсинг») с чеклистом
+- [x] P0: перегруппировать `settings_keyboard`
+- [x] P0: «Запустить» только когда ready (иначе CTA в cabinet)
+- [x] P1: wizard первого запуска (аккаунт → ключи → каналы → старт) — `menu:wizard`
+- [x] P2: подсказки «что дальше» если чего-то не хватает (`next_step_*` на главном и в кабинете)
+- [x] P1: «за 3 шага» в welcome (если не ready), wizard и «Инструкция»
 
-## Связанный код (сейчас)
-
-- `keyboards/admin/keyboards.py` — `menu_user_admin_rows`
-- `keyboards/user/keyboards.py` — `settings_keyboard`
-- `handlers/user/menu_helpers.py` — `show_main_menu`, welcome
-- `handlers/user/handlers.py` — `/start`, tracking start/stop
+- `handlers/user/menu_helpers.py` — `show_wizard`, `show_main_or_wizard`
+- `keyboards/user/keyboards.py` — `wizard_keyboard`
+- `keyboards/admin/keyboards.py` — `menu_user_admin_rows` (setup → wizard)
+- `handlers/user/handlers.py` — `/start`, language → wizard если не ready
