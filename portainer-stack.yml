@@ -1,11 +1,11 @@
 # Portainer Stack — AutoParseAlertBot
-# Код и данные на сервере: /opt/autoparsealertbot
+# Код и данные: /opt/autoparsealertbot
 #
-# Сборка образа на сервере (один раз / после обновления кода):
+# Сборка образа:
 #   cd /opt/autoparsealertbot && docker build -t autoparsealertbot:latest .
 #
-# Portainer → Stacks → Add stack → Web editor (вставить этот файл)
-# или: docker compose -f /opt/autoparsealertbot/portainer-stack.yml up -d
+# Portainer → Stacks → Add stack → Web editor
+# Environment variables стека — скопируйте из portainer.env.example (значения с сервера)
 
 services:
   redis:
@@ -29,11 +29,6 @@ services:
     depends_on:
       redis:
         condition: service_healthy
-    env_file:
-      - /opt/autoparsealertbot/.env
-    environment:
-      REDIS_URL: redis://redis:6379/0
-      TZ: ${TIMEZONE:-UTC}
     ports:
       - "${PORT:-8000}:8000"
     volumes:
@@ -42,6 +37,53 @@ services:
       - /opt/autoparsealertbot/logs:/app/logs
     networks:
       - apa_net
+    environment:
+      # Telegram
+      BOT_TOKEN: ${BOT_TOKEN}
+      ID: ${ID}
+      HASH: ${HASH}
+      ADMIN_USER_IDS: ${ADMIN_USER_IDS}
+
+      # Доступ
+      CLOSED_BETA: ${CLOSED_BETA:-true}
+      ALLOWED_USER_IDS: ${ALLOWED_USER_IDS:-}
+      DEVELOPER_USERNAME: ${DEVELOPER_USERNAME:-cheef_engineer}
+
+      # AI
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      POLZA_AI_API_KEY: ${POLZA_AI_API_KEY:-}
+
+      # Proxy
+      PROXY_USER: ${PROXY_USER:-}
+      PROXY_PASSWORD: ${PROXY_PASSWORD:-}
+      PROXY_IP: ${PROXY_IP:-}
+      PROXY_PORT: ${PROXY_PORT:-}
+
+      # Web
+      PORT: "8000"
+      WEBAPP_URL: ${WEBAPP_URL:-}
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
+
+      # Режим бота
+      BOT_MODE: ${BOT_MODE:-polling}
+      WEBHOOK_URL: ${WEBHOOK_URL:-}
+      WEBHOOK_SECRET: ${WEBHOOK_SECRET:-}
+
+      # Redis (внутри стека всегда на сервис redis)
+      REDIS_URL: redis://redis:6379/0
+
+      # Dev
+      ENABLE_MOCK_AUTH: ${ENABLE_MOCK_AUTH:-false}
+
+      # Логи / TZ
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_FILE: logs/bot.log
+      LOG_DIR: logs
+      LOG_COLORS: ${LOG_COLORS:-false}
+      LOG_ROTATION_ENABLED: ${LOG_ROTATION_ENABLED:-false}
+      TIMEZONE: ${TIMEZONE:-UTC}
+      TZ: ${TIMEZONE:-UTC}
 
 networks:
   apa_net:

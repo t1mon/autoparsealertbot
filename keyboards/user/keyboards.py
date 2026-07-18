@@ -376,6 +376,7 @@ def settings_keyboard(lang: str = "ru") -> InlineKeyboardMarkup:
             [_btn(t("quiet_hours_button", lang=lang), "menu:quiet_hours", "primary")],
             [_btn(t("digest_button", lang=lang), "menu:digest", "primary")],
             [_btn(t("chat_filter_button", lang=lang), "menu:chat_filter", "primary")],
+            [_btn(t("author_filter_button", lang=lang), "menu:author_filter", "primary")],
             [_btn(t("alert_template_button", lang=lang), "menu:alert_template", "primary")],
             [_btn(t("alert_destination_button", lang=lang), "menu:alert_destination", "primary")],
             [
@@ -449,6 +450,27 @@ def chat_filter_keyboard(lang: str, current: str = "all") -> InlineKeyboardMarku
             [_btn(mark("all", "chat_filter_all_button"), "menu:chat_filter:all", "success")],
             [_btn(mark("channels", "chat_filter_channels_button"), "menu:chat_filter:channels", "primary")],
             [_btn(mark("groups", "chat_filter_groups_button"), "menu:chat_filter:groups", "primary")],
+            [_btn(t("back_button", lang=lang), "back:settings", "danger")],
+        ]
+    )
+
+
+def author_filter_keyboard(lang: str, current: str = "humans") -> InlineKeyboardMarkup:
+    def mark(mode: str, label_key: str) -> str:
+        prefix = "● " if mode == current else "○ "
+        return prefix + t(label_key, lang=lang)
+
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [_btn(mark("humans", "author_filter_humans_button"), "menu:author_filter:humans", "success")],
+            [
+                _btn(
+                    mark("humans_anon", "author_filter_humans_anon_button"),
+                    "menu:author_filter:humans_anon",
+                    "primary",
+                )
+            ],
+            [_btn(mark("all", "author_filter_all_button"), "menu:author_filter:all", "primary")],
             [_btn(t("back_button", lang=lang), "back:settings", "danger")],
         ]
     )

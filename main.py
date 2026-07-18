@@ -24,6 +24,7 @@ from handlers.user.channels import router as channels
 from handlers.user.quiet_hours import router as quiet_hours
 from handlers.user.digest import router as digest
 from handlers.user.chat_filter import router as chat_filter
+from handlers.user.author_filter import router as author_filter
 from handlers.user.alert_template import router as alert_template
 from handlers.user.alert_destination import group_router as alert_destination_group
 from handlers.user.alert_destination import router as alert_destination
@@ -73,6 +74,7 @@ PRIVATE_USER_ROUTERS = (
     quiet_hours,
     digest,
     chat_filter,
+    author_filter,
     alert_template,
     alert_destination,
     stopwords,

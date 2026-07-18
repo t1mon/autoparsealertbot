@@ -358,6 +358,7 @@ excel_header_lead_time = Время
 excel_header_author_name = Автор
 excel_header_author_username = @username
 excel_header_author_id = Author ID
+excel_header_author_kind = Тип автора
 excel_header_chat_title = Чат
 excel_header_link = Ссылка
 excel_header_message_text = Текст
@@ -1093,6 +1094,22 @@ chat_filter_all_button = Все чаты
 chat_filter_channels_button = Только каналы
 chat_filter_groups_button = Только группы
 chat_filter_saved = Фильтр: { $mode }
+author_filter_button = 👤 Кто пишет
+author_filter_message =
+    👤 <b>Фильтр авторов</b>
+
+    Сейчас: <b>{ $current }</b>
+
+    • <b>Только люди</b> — сообщения от реальных пользователей (не посты каналов и ботов)
+    • <b>Люди + анонимы</b> — плюс сообщения без явного автора
+    • <b>Все</b> — включая посты каналов, репосты каналов и ботов
+author_filter_humans_name = только люди
+author_filter_humans_anon_name = люди + анонимы
+author_filter_all_name = все
+author_filter_humans_button = Только люди
+author_filter_humans_anon_button = Люди + анонимы
+author_filter_all_button = Все авторы
+author_filter_saved = Авторы: { $mode }
 alert_template_button = 📝 Шаблон алерта
 alert_template_message =
     📝 <b>Шаблон алерта</b>

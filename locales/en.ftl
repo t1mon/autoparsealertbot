@@ -358,6 +358,7 @@ excel_header_lead_time = Time
 excel_header_author_name = Author
 excel_header_author_username = @username
 excel_header_author_id = Author ID
+excel_header_author_kind = Author type
 excel_header_chat_title = Chat
 excel_header_link = Link
 excel_header_message_text = Text
@@ -1093,6 +1094,22 @@ chat_filter_all_button = All chats
 chat_filter_channels_button = Channels only
 chat_filter_groups_button = Groups only
 chat_filter_saved = Filter: { $mode }
+author_filter_button = 👤 Who writes
+author_filter_message =
+    👤 <b>Author filter</b>
+
+    Current: <b>{ $current }</b>
+
+    • <b>Humans only</b> — real users (not channel posts or bots)
+    • <b>Humans + anonymous</b> — plus messages without a clear author
+    • <b>All</b> — including channel posts, channel forwards, and bots
+author_filter_humans_name = humans only
+author_filter_humans_anon_name = humans + anonymous
+author_filter_all_name = all
+author_filter_humans_button = Humans only
+author_filter_humans_anon_button = Humans + anonymous
+author_filter_all_button = All authors
+author_filter_saved = Authors: { $mode }
 alert_template_button = 📝 Alert template
 alert_template_message =
     📝 <b>Alert template</b>

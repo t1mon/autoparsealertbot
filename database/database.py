@@ -102,6 +102,28 @@ def init_database():
         db.execute_sql('ALTER TABLE "user" ADD COLUMN "alert_thread_id" INTEGER;')
     db.execute_sql('UPDATE "user" SET "alert_to_dm" = 1 WHERE "alert_to_dm" IS NULL;')
     db.execute_sql('UPDATE "user" SET "alert_to_group" = 0 WHERE "alert_to_group" IS NULL;')
+    if "author_filter" not in columns:
+        logger.info("Migrating database: adding 'author_filter' column to user table")
+        db.execute_sql(
+            'ALTER TABLE "user" ADD COLUMN "author_filter" VARCHAR(16) DEFAULT \'humans\';'
+        )
+    db.execute_sql(
+        'UPDATE "user" SET "author_filter" = \'humans\' '
+        'WHERE "author_filter" IS NULL OR "author_filter" = \'\';'
+    )
+
+    cursor.execute("PRAGMA table_info(leads)")
+    lead_columns = [row[1] for row in cursor.fetchall()]
+    if lead_columns and "author_kind" not in lead_columns:
+        logger.info("Migrating database: adding 'author_kind' column to leads")
+        db.execute_sql(
+            'ALTER TABLE "leads" ADD COLUMN "author_kind" VARCHAR(32) DEFAULT \'anonymous\';'
+        )
+    if lead_columns:
+        db.execute_sql(
+            'UPDATE "leads" SET "author_kind" = \'anonymous\' '
+            'WHERE "author_kind" IS NULL OR "author_kind" = \'\';'
+        )
 
     cursor.execute("PRAGMA table_info(users_groups)")
     group_columns = [row[1] for row in cursor.fetchall()]
@@ -703,6 +725,7 @@ class User(BaseModel):
     alert_to_group = BooleanField(default=False)
     alert_chat_id = IntegerField(null=True)
     alert_thread_id = IntegerField(null=True)
+    author_filter = CharField(default="humans")  # humans | humans_anon | all
 
 
 def create_keywords_model(user_id):
@@ -1107,6 +1130,35 @@ def set_user_chat_filter(user_id: int, mode: str) -> str:
         return DEFAULT_CHAT_FILTER
 
 
+def get_user_author_filter(user_id: int) -> str:
+    from core.author_kind import DEFAULT_AUTHOR_FILTER, normalize_author_filter
+
+    try:
+        user = User.get_or_none(User.user_id == user_id)
+        if not user:
+            return DEFAULT_AUTHOR_FILTER
+        return normalize_author_filter(getattr(user, "author_filter", None))
+    except Exception as e:
+        logger.exception("get_author_filter_error", error=e)
+        return DEFAULT_AUTHOR_FILTER
+
+
+def set_user_author_filter(user_id: int, mode: str) -> str:
+    from core.author_kind import DEFAULT_AUTHOR_FILTER, normalize_author_filter
+
+    mode = normalize_author_filter(mode)
+    try:
+        user = User.get_or_none(User.user_id == user_id)
+        if not user:
+            return DEFAULT_AUTHOR_FILTER
+        user.author_filter = mode
+        user.save()
+        return mode
+    except Exception as e:
+        logger.exception("set_author_filter_error", error=e)
+        return DEFAULT_AUTHOR_FILTER
+
+
 def get_user_alert_template(user_id: int) -> str:
     from core.alert_template import DEFAULT_ALERT_TEMPLATE, normalize_alert_template
 
@@ -1342,6 +1394,7 @@ class Lead(BaseModel):
     matched_keyword = CharField(max_length=512)
     matched_at = DateTimeField(default=datetime.now, index=True)
     unique_key = CharField(unique=True, max_length=128)
+    author_kind = CharField(default="anonymous", max_length=32)  # user|bot|channel|anonymous|forward_channel
 
     class Meta:
         table_name = "leads"
@@ -1372,12 +1425,16 @@ def save_lead(
     author_tg_id: int | None = None,
     author_username: str | None = None,
     author_name: str | None = None,
+    author_kind: str | None = None,
 ) -> bool:
     """
     UPSERT по unique_key. Возвращает True, если запись создана или уже была.
     Ошибки БД логируются, наружу не пробрасываются.
     """
+    from core.author_kind import normalize_author_kind
+
     unique_key = make_lead_unique_key(owner_user_id, chat_id, message_id)
+    kind = normalize_author_kind(author_kind)
     try:
         existing = Lead.get_or_none(Lead.unique_key == unique_key)
         if existing:
@@ -1388,6 +1445,7 @@ def save_lead(
             author_tg_id=author_tg_id,
             author_username=(author_username or None),
             author_name=(author_name or None),
+            author_kind=kind,
             chat_id=chat_id,
             chat_title=chat_title,
             chat_username=chat_username,

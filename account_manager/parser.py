@@ -30,12 +30,14 @@ from account_manager.subscription import subscription_telegram
 from core.telegram_utils import chat_ref_label, normalize_telegram_chat_ref, normalize_telegram_username
 from core.keyword_match import MatchDetail, find_matching_keyword_detail
 from core.chat_filter import chat_type_allowed, classify_chat_entity
+from core.author_kind import author_kind_allowed, classify_author_kind
 from core.stopwords import find_stopword
 from database.database import (
     create_keywords_model, TelegramGroup, get_active_account, get_user_channel_usernames,
     User, lead_exists, save_lead, get_user_match_mode, is_user_in_quiet_hours,
     get_user_digest_settings, get_user_chat_filter, get_user_stopwords,
     get_user_alert_template, get_failover_account, set_active_account,
+    get_user_author_filter,
 )
 from keyboards.user.keyboards import alert_actions_keyboard, resolve_main_keyboard
 from locales.locales import t
@@ -539,15 +541,22 @@ def _log_tracking_channels(user_id, channels: list[str]) -> None:
 async def _resolve_message_author(message, client, lang: str) -> tuple[str, dict]:
     """
     Автор для алерта + поля для БД.
-    Возвращает (display_html, {author_tg_id, author_username, author_name}).
+    Возвращает (display_html, {author_tg_id, author_username, author_name, author_kind}).
     """
-    meta = {"author_tg_id": None, "author_username": None, "author_name": None}
+    meta = {
+        "author_tg_id": None,
+        "author_username": None,
+        "author_name": None,
+        "author_kind": "anonymous",
+    }
 
     try:
         sender = await message.get_sender()
     except Exception as e:
         logger.debug("get_sender_failed", error=str(e))
         sender = None
+
+    meta["author_kind"] = classify_author_kind(sender, message)
 
     if isinstance(sender, TlUser):
         name = " ".join(
@@ -582,6 +591,8 @@ async def _resolve_message_author(message, client, lang: str) -> tuple[str, dict
     from_id = getattr(message, "from_id", None)
     if from_id is not None and hasattr(from_id, "user_id"):
         meta["author_tg_id"] = from_id.user_id
+        if meta["author_kind"] == "anonymous":
+            meta["author_kind"] = "user"
         return t("alert_author_id_only", lang=lang, id=from_id.user_id), meta
 
     return t("alert_author_unknown", lang=lang), meta
@@ -847,6 +858,19 @@ async def process_message(client, message, chat_id: int, user_id, user_language:
         message_time = _format_alert_time(message, user_language)
 
         author_display, author_meta = await _resolve_message_author(message, client, user_language)
+        author_kind = author_meta.get("author_kind") or "anonymous"
+        author_filter = get_user_author_filter(int(user_id))
+        if not author_kind_allowed(author_filter, author_kind):
+            logger.info(
+                "author_filter_skip",
+                user_id=user_id,
+                chat_id=chat_id,
+                message_id=getattr(message, "id", None),
+                author_kind=author_kind,
+                author_filter=author_filter,
+                keyword=matched_keyword,
+            )
+            return
 
         try:
             save_lead(
@@ -861,6 +885,7 @@ async def process_message(client, message, chat_id: int, user_id, user_language:
                 author_tg_id=author_meta.get("author_tg_id"),
                 author_username=author_meta.get("author_username"),
                 author_name=author_meta.get("author_name"),
+                author_kind=author_kind,
             )
         except Exception as e:
             logger.exception("lead_save_unexpected", error=e)

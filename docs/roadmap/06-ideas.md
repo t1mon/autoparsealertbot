@@ -7,6 +7,8 @@
 - [x] P2: дайджест: N срабатываний за интервал одним сообщением (`menu:digest`)
 - [x] P2: база совпадений (история/выгрузка) → [08-leads.md](08-leads.md)
 - [x] P2: фильтр по типу чата (только каналы / только группы) — `menu:chat_filter`
+- [x] P0: фильтр авторов лидов (`menu:author_filter`: humans / humans_anon / all; поле `author_kind` в leads)
+
 - [x] P2: чёрный список слов (не алертить, если есть стоп-слово) — `menu:stopwords`
 - [x] P2: шаблон алерта настраиваемый (`menu:alert_template`: full/compact/minimal) → [07-alerts.md](07-alerts.md)
 - [x] P2: кнопка «открыть в Telegram» + «игнор канал на 24ч» под алертом
